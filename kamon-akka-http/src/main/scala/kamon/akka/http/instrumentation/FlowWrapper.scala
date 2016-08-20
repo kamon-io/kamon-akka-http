@@ -73,7 +73,7 @@ object FlowWrapper {
       setHandler(responseIn, new InHandler {
         override def onPush(): Unit = {
           val response = Tracer.currentContext.collect { ctx ⇒
-            ctx.finish()
+            if (!ctx.isClosed) ctx.finish()
 
             val response = grab(responseIn)
             metrics.recordResponse(response, ctx.name)

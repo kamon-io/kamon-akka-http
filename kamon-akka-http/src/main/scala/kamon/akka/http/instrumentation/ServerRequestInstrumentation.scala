@@ -19,12 +19,14 @@ package kamon.akka.http.instrumentation
 import akka.NotUsed
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.ConnectionContext
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
-import akka.http.scaladsl.settings.ServerSettings
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.server.{ExceptionHandler, Route}
+import akka.http.scaladsl.settings.{RoutingSettings, ServerSettings}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Flow
+import kamon.trace.Tracer
 import org.aspectj.lang.ProceedingJoinPoint
-import org.aspectj.lang.annotation.{ Around, Aspect }
+import org.aspectj.lang.annotation.{Around, Aspect}
 
 @Aspect
 class ServerRequestInstrumentation {
@@ -40,5 +42,32 @@ class ServerRequestInstrumentation {
     materializer: Materializer): AnyRef = {
 
     pjp.proceed(Array(FlowWrapper(handler.asInstanceOf[Flow[HttpRequest, HttpResponse, NotUsed]]), interface, port, connectionContext, settings, log, materializer))
+  }
+}
+
+@Aspect
+class ErrorHandlingInstrumentation {
+
+  @Around("execution(* akka.http.scaladsl.server.directives.ExecutionDirectives$.handleExceptions(..)) && args(exceptionHandler)")
+  def onHandleExceptions(pjp: ProceedingJoinPoint,
+                         exceptionHandler: ExceptionHandler): AnyRef = {
+
+    println("run onHandleExceptions")
+    pjp.proceed(Array(new ExceptionHandlerWrapper(exceptionHandler)))
+  }
+}
+
+class ExceptionHandlerWrapper(exceptionHandler: ExceptionHandler) extends ExceptionHandler {
+  println("creating ExceptionHandlerWrapper")
+  override def withFallback(that: ExceptionHandler): ExceptionHandler = exceptionHandler.withFallback(that)
+
+  override def seal(settings: RoutingSettings): ExceptionHandler = exceptionHandler.seal(settings)
+
+  override def isDefinedAt(x: Throwable): Boolean = exceptionHandler.isDefinedAt(x)
+
+  override def apply(v1: Throwable): Route = {
+    println("running finishWithError")
+    Tracer.currentContext.finishWithError(v1)
+    exceptionHandler.apply(v1)
   }
 }

@@ -44,6 +44,11 @@ case class WebServer(interface: String, port: Int)(implicit private val system: 
         path(dummyPathError) {
           complete(InternalServerError)
         } ~
+        path(tracePathFailure) {
+          complete {
+            throw new RuntimeException("Force an exception")
+          }
+        } ~
         path(traceOk) {
           complete(OK)
         } ~
@@ -81,6 +86,7 @@ trait WebServerSupport {
     val rootOk: String = ""
     val dummyPathOk: String = "dummy-path"
     val dummyPathError: String = "dummy-path-error"
+    val tracePathFailure: String = "trace-path-failure"
     val traceOk: String = "record-trace-metrics-ok"
     val traceBadRequest: String = "record-trace-metrics-bad-request"
     val metricsOk: String = "record-http-metrics-ok"
