@@ -33,9 +33,15 @@ class AkkaHttpServerMetrics(instrumentFactory: InstrumentFactory) extends HttpSe
     requestActive.increment()
   }
 
-  def recordResponse(response: HttpResponse, traceName: String): Unit = {
+  def recordResponse(response: HttpResponse, traceName: String, finishWithError: Boolean): Unit = {
     requestActive.decrement()
-    super.recordResponse(response.status.intValue.toString, traceName)
+    val statusCode: String = response.status.intValue.toString
+    super.recordResponse(statusCode, traceName)
+    val tags: Map[String, String] = Map(
+      "traceName" -> traceName,
+      "status" -> statusCode
+    ) ++ response.headers.map(header => header.name() -> header.value())
+    if (finishWithError) counter("request-error").increment()
   }
 
   def recordConnectionOpened(): Unit = connectionOpen.increment()

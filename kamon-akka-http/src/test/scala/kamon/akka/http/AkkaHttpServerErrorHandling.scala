@@ -23,9 +23,7 @@ import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
 import kamon.Kamon
-import kamon.testkit.{BaseKamonSpec, WebServer, WebServerSupport}
-import kamon.trace.Status.FinishedWithError
-import kamon.trace.Tracer
+import kamon.testkit.{ BaseKamonSpec, WebServer, WebServerSupport }
 import org.scalatest.Matchers
 
 import scala.concurrent.duration._
@@ -57,7 +55,7 @@ class AkkaHttpServerErrorHandling extends BaseKamonSpec with Matchers {
   }
 
   "the Akka Http Server error handling instrumentation" should {
-    "close a trace context with error for stream singled with failure" in {
+    "finish the trace with error when happen an exception on the user code" in {
 
       val connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
         Http().outgoingConnection(interface, port)
@@ -66,11 +64,34 @@ class AkkaHttpServerErrorHandling extends BaseKamonSpec with Matchers {
       clean("UnnamedTrace", "trace")
 
       val validationFut: Future[_] = Source.single(HttpRequest(uri = tracePathFailure.withSlash))
-          .via(connectionFlow)
-          .runWith(Sink.head)
-          .map (resp => {
-            resp.status shouldBe InternalServerError
-          })
+        .via(connectionFlow)
+        .runWith(Sink.head)
+        .map(resp ⇒ {
+          resp.status shouldBe InternalServerError
+        })
+
+      Await.result(validationFut, timeoutStartUpServer)
+
+      val snapshot = takeSnapshotOf("UnnamedTrace", "trace")
+      snapshot.histogram("elapsed-time").get.numberOfMeasurements should be(1)
+      snapshot.counter("errors").get.count should be(1)
+
+    }
+
+    "finish the trace with error when the request is rejected" in {
+
+      val connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
+        Http().outgoingConnection(interface, port)
+
+      // Erase metrics recorder from previous tests.
+      clean("UnnamedTrace", "trace")
+
+      val validationFut: Future[_] = Source.single(HttpRequest(uri = "/wrong-url"))
+        .via(connectionFlow)
+        .runWith(Sink.head)
+        .map(resp ⇒ {
+          resp.status shouldBe NotFound
+        })
 
       Await.result(validationFut, timeoutStartUpServer)
 
@@ -80,6 +101,5 @@ class AkkaHttpServerErrorHandling extends BaseKamonSpec with Matchers {
 
     }
   }
-
 
 }

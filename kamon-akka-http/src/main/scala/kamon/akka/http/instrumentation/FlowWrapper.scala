@@ -18,12 +18,13 @@ package kamon.akka.http.instrumentation
 
 import akka.NotUsed
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream._
-import akka.stream.scaladsl.{ BidiFlow, Flow }
+import akka.stream.scaladsl.{BidiFlow, Flow}
 import akka.stream.stage._
 import kamon.Kamon
 import kamon.akka.http.AkkaHttpExtension
+import kamon.trace.Status.FinishedWithError
 import kamon.trace.Tracer
 import kamon.util.logger.LazyLogger
 
@@ -76,7 +77,8 @@ object FlowWrapper {
             if (!ctx.isClosed) ctx.finish()
 
             val response = grab(responseIn)
-            metrics.recordResponse(response, ctx.name)
+            val finishWithError = ctx.status == FinishedWithError
+            metrics.recordResponse(response, ctx.name, finishWithError = finishWithError)
 
             if (AkkaHttpExtension.settings.includeTraceTokenHeader)
               includeTraceToken(response, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
