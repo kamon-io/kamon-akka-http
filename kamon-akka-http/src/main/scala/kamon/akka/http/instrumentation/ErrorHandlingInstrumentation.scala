@@ -16,10 +16,15 @@
 
 package kamon.akka.http.instrumentation
 
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route, RoutingLog}
 import akka.http.scaladsl.settings.{ParserSettings, RoutingSettings}
 import akka.stream.Materializer
+import kamon.Kamon
+import kamon.akka.http.AkkaHttpExtension
+import kamon.trace.Status.FinishedWithError
+import kamon.trace.Tracer
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.{Around, Aspect}
 
@@ -33,7 +38,7 @@ class ErrorHandlingInstrumentation {
   def onHandleExceptions(pjp: ProceedingJoinPoint,
                          exceptionHandler: ExceptionHandler): AnyRef = {
 
-    println("run onHandleExceptions")
+//    println("run onHandleExceptions")
     pjp.proceed(Array(new ExceptionHandlerWrapper(exceptionHandler)))
   }
 
@@ -41,7 +46,7 @@ class ErrorHandlingInstrumentation {
   def onHandleExceptions(pjp: ProceedingJoinPoint,
                          rejectionHandler: RejectionHandler): AnyRef = {
 
-    println("run onHandleExceptions")
+//    println("run onHandleExceptions - handleRejections")
     pjp.proceed(Array(new RejectionHandlerWrapper(rejectionHandler)))
   }
 }
@@ -78,8 +83,33 @@ class StartMetricsInstrumentation {
 
 class RequestHandlerWrapper(underlying: HttpRequest ⇒ Future[HttpResponse]) extends (HttpRequest ⇒ Future[HttpResponse]) {
 
+  import scala.concurrent.ExecutionContext.Implicits.global
+
   override def apply(v1: HttpRequest): Future[HttpResponse] = {
-    println("Entro al request handler!!!!!!!!!!!!!!!!!!")
+//    println("Entro al request handler!!!!!!!!!!!!!!!!!!")
+
+//    val metrics = AkkaHttpExtension.metrics
+//    metrics.recordRequest()
+//    underlying.apply(v1).map { httpResponse =>
+//      Tracer.currentContext.collect { ctx ⇒
+//        if (!ctx.isClosed) ctx.finish()
+//
+////        val response = grab(responseIn)
+//        val finishWithError = ctx.status == FinishedWithError
+//        metrics.recordResponse(httpResponse, ctx.name, finishWithError = finishWithError)
+//
+//        if (AkkaHttpExtension.settings.includeTraceTokenHeader)
+//          includeTraceToken(httpResponse, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
+//        else httpResponse
+//
+//      } getOrElse httpResponse
+//    }
     underlying.apply(v1)
+  }
+
+
+  private def includeTraceToken(response: HttpResponse, traceTokenHeaderName: String, token: String): HttpResponse = response match {
+    case response: HttpResponse ⇒ response.withHeaders(response.headers ++ Seq(RawHeader(traceTokenHeaderName, token)))
+    case other                  ⇒ other
   }
 }
