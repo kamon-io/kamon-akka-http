@@ -86,24 +86,24 @@ class RequestHandlerWrapper(underlying: HttpRequest ⇒ Future[HttpResponse]) ex
   import scala.concurrent.ExecutionContext.Implicits.global
 
   override def apply(v1: HttpRequest): Future[HttpResponse] = {
-//    println("Entro al request handler!!!!!!!!!!!!!!!!!!")
+    println("Entro al request handler!!!!!!!!!!!!!!!!!!")
 
-//    val metrics = AkkaHttpExtension.metrics
-//    metrics.recordRequest()
-//    underlying.apply(v1).map { httpResponse =>
-//      Tracer.currentContext.collect { ctx ⇒
-//        if (!ctx.isClosed) ctx.finish()
-//
-////        val response = grab(responseIn)
-//        val finishWithError = ctx.status == FinishedWithError
-//        metrics.recordResponse(httpResponse, ctx.name, finishWithError = finishWithError)
-//
-//        if (AkkaHttpExtension.settings.includeTraceTokenHeader)
-//          includeTraceToken(httpResponse, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
-//        else httpResponse
-//
-//      } getOrElse httpResponse
-//    }
+    val metrics = AkkaHttpExtension.metrics
+    metrics.recordRequest()
+    underlying.apply(v1).map { httpResponse =>
+      Tracer.currentContext.collect { ctx ⇒
+        if (!ctx.isClosed) ctx.finish()
+
+//        val response = grab(responseIn)
+        val finishWithError = ctx.status == FinishedWithError
+        metrics.recordResponse(httpResponse, ctx.name, finishWithError = finishWithError)
+
+        if (AkkaHttpExtension.settings.includeTraceTokenHeader)
+          includeTraceToken(httpResponse, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
+        else httpResponse
+
+      } getOrElse httpResponse
+    }
     underlying.apply(v1)
   }
 

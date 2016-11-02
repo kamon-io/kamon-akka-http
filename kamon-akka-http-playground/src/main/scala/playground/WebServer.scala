@@ -31,6 +31,7 @@ import kamon.metric.instrument.{Counter, Histogram}
 
 import scala.concurrent.duration._
 import scala.io.StdIn
+import scala.util.control.NoStackTrace
 
 object WebServer extends App {
 
@@ -64,7 +65,7 @@ object WebServer extends App {
           complete(HttpResponse(InternalServerError))
         } ~
         path("fail-with-exception") {
-          throw new RuntimeException("Failed!")
+          throw new RuntimeException("Failed!") with NoStackTrace
         }
     }
   }

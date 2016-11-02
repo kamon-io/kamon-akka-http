@@ -73,18 +73,20 @@ object FlowWrapper {
 
       setHandler(responseIn, new InHandler {
         override def onPush(): Unit = {
-          val response = Tracer.currentContext.collect { ctx ⇒
-            if (!ctx.isClosed) ctx.finish()
+//          val response = Tracer.currentContext.collect { ctx ⇒
+//            if (!ctx.isClosed) ctx.finish()
+//
+//            val response = grab(responseIn)
+//            val finishWithError = ctx.status == FinishedWithError
+//            metrics.recordResponse(response, ctx.name, finishWithError = finishWithError)
+//
+//            if (AkkaHttpExtension.settings.includeTraceTokenHeader)
+//              includeTraceToken(response, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
+//            else response
+//
+//          } getOrElse grab(responseIn)
 
-            val response = grab(responseIn)
-            val finishWithError = ctx.status == FinishedWithError
-            metrics.recordResponse(response, ctx.name, finishWithError = finishWithError)
-
-            if (AkkaHttpExtension.settings.includeTraceTokenHeader)
-              includeTraceToken(response, AkkaHttpExtension.settings.traceTokenHeaderName, ctx.token)
-            else response
-
-          } getOrElse grab(responseIn)
+          val response = grab(responseIn)
 
           push(responseOut, response)
         }
