@@ -106,7 +106,8 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
       val snapshot = takeSnapshotOf("akka-http-server", "akka-http-server")
       snapshot.counter("UnnamedTrace_200").get.count should be(10)
       snapshot.counter("UnnamedTrace_400").get.count should be(5)
-      snapshot.counter("200").get.count should be(15)
+      snapshot.counter("200").get.count should be(10)
+      snapshot.counter("400").get.count should be(5)
 
       snapshot.minMaxCounter("request-active") should be(defined)
       snapshot.minMaxCounter("connection-open") should be(defined)
