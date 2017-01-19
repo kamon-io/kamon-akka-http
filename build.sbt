@@ -29,6 +29,7 @@ lazy val kamonAkkaHttp = Project("kamon-akka-http",file("kamon-akka-http"))
   .settings(aspectJSettings: _*)
   .settings(resolvers += "kamon-io at bintray" at "http://dl.bintray.com/kamon-io/releases")
   .settings(resolvers += "Kamon Repository Snapshots"  at "http://snapshots.kamon.io")
+  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http, kamonCore, kamonAkka) ++
     testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
