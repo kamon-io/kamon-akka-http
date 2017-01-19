@@ -37,6 +37,7 @@ lazy val kamonAkkaHttp = Project("kamon-akka-http",file("kamon-akka-http"))
 
 lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground",file("kamon-akka-http-playground"))
   .dependsOn(kamonAkkaHttp)
+  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http, kamonLogReporter) ++
     testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
