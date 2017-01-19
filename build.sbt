@@ -14,8 +14,7 @@
  * =========================================================================================
  */
 
-val kamonCore        = "io.kamon" %% "kamon-core"            % "0.6.5"
-val kamonScala       = "io.kamon" %% "kamon-scala"           % "0.6.5"
+val kamonCore        = "io.kamon" %% "kamon-core"            % "0.6.6-SNAPSHOT"
 val kamonAkka        = "io.kamon" %% "kamon-akka-2.4"        % "0.6.5"
 val kamonLogReporter = "io.kamon" %% "kamon-log-reporter"    % "0.6.5"
 
@@ -28,8 +27,10 @@ lazy val kamonAkkaHttpRoot = Project("kamon-akka-http-root",file("."))
 
 lazy val kamonAkkaHttp = Project("kamon-akka-http",file("kamon-akka-http"))
   .settings(aspectJSettings: _*)
+  .settings(resolvers += "kamon-io at bintray" at "http://dl.bintray.com/kamon-io/releases")
+  .settings(resolvers += "Kamon Repository Snapshots"  at "http://snapshots.kamon.io")
   .settings(libraryDependencies ++=
-    compileScope(http, kamonCore) ++
+    compileScope(http, kamonCore, kamonAkka) ++
     testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
     providedScope(aspectJ))
 
