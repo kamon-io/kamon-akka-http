@@ -16,52 +16,40 @@
 
 val kamonCore        = "io.kamon" %% "kamon-core"            % "0.6.6-SNAPSHOT"
 val kamonAkka        = "io.kamon" %% "kamon-akka-2.4"        % "0.6.5"
-//val kamonLogReporter = "io.kamon" %% "kamon-log-reporter"    % "0.6.5"
+val kamonLogReporter = "io.kamon" %% "kamon-log-reporter"    % "0.6.5"
 
 val http         = "com.typesafe.akka" %% "akka-http"          % "10.0.1"
 val httpTestKit  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.0.1"
 
+lazy val kamonAkkaHttpRoot = (project in file("."))
+  .aggregate(kamonAkkaHttp, kamonAkkaHttpPlayground)
+  .settings(noPublishing: _*)
 
-lazy val kamonAkkaHttp = (project in file("."))
+lazy val kamonAkkaHttp = Project("kamon-akka-http", file("kamon-akka-http"))
   .settings(name := "kamon-akka-http")
-  .settings(aspectJSettings: _*)
   .settings(resolvers ++=  resolutionRepos)
-  .settings(Seq(scalaVersion := "2.12.1",
-    crossScalaVersions := Seq("2.11.8", "2.12.1"),
-    parallelExecution in Global := false),
-    testGrouping in Test := singleTestPerJvm((definedTests in Test).value, (javaOptions in Test).value))
+  .settings(aspectJSettings: _*)
+  .settings(Seq(scalaVersion := "2.12.1",crossScalaVersions := Seq("2.11.8", "2.12.1"),testGrouping in Test := singleTestPerJvm((definedTests in Test).value, (javaOptions in Test).value)))
   .settings(libraryDependencies ++=
     compileScope(http, kamonCore, kamonAkka) ++
       testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
       providedScope(aspectJ))
 
-//lazy val kamonAkkaHttpRoot = Project("kamon-akka-http-root",file("."))
-//  .aggregate(kamonAkkaHttp, kamonAkkaHttpPlayground)
-//  .settings(noPublishing: _*)
-//
-//lazy val kamonAkkaHttp = Project("kamon-akka-http", file("kamon-akka-http"))
-//  .settings(aspectJSettings: _*)
-//  .settings(resolvers ++=  resolutionRepos)
-//  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
-//  .settings(libraryDependencies ++=
-//    compileScope(http, kamonCore, kamonAkka) ++
-//    testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
-//    providedScope(aspectJ))
-//
-//lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground",file("kamon-akka-http-playground"))
-//  .dependsOn(kamonAkkaHttp)
-//  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
-//  .settings(libraryDependencies ++=
-//    compileScope(http, kamonLogReporter) ++
-//    testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
-//    providedScope(aspectJ))
-//  .settings(noPublishing: _*)
-//  .settings(settingsForPlayground: _*)
-//
-//lazy val settingsForPlayground: Seq[Setting[_]] = Seq(
-//  connectInput in run := true,
-//  cancelable in Global := true
-//)
+lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground", file("kamon-akka-http-playground"))
+  .dependsOn(kamonAkkaHttp)
+  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
+  .settings(resolvers ++=  resolutionRepos)
+  .settings(noPublishing: _*)
+  .settings(settingsForPlayground: _*)
+  .settings(libraryDependencies ++=
+    compileScope(http, kamonLogReporter) ++
+    testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
+    providedScope(aspectJ))
+
+lazy val settingsForPlayground: Seq[Setting[_]] = Seq(
+  connectInput in run := true,
+  cancelable in Global := true
+)
 
 lazy val resolutionRepos = Seq(
   "kamon-io bintray" at "http://dl.bintray.com/kamon-io/releases",
