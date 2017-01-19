@@ -39,7 +39,7 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
 
   val timeoutStartUpServer = 10 second
 
-  val interface = "0.0.0.0"
+  val interface = "192.168.1.112"
   val port = 8080
 
   val webServer = WebServer(interface, port)
@@ -84,7 +84,7 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
     "record http server metrics for all the requests" in {
 
       val connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
-        Http().outgoingConnection("localhost", port)
+        Http().outgoingConnection("0.0.0.0", port)
 
       // Erase metrics recorder from previous tests.
       clean("akka-http-server", "http-server")
