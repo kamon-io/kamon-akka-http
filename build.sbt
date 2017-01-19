@@ -29,7 +29,11 @@ lazy val kamonAkkaHttp = Project("kamon-akka-http",file("kamon-akka-http"))
   .settings(aspectJSettings: _*)
   .settings(resolvers += "kamon-io at bintray" at "http://dl.bintray.com/kamon-io/releases")
   .settings(resolvers += "Kamon Repository Snapshots"  at "http://snapshots.kamon.io")
-  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
+  .settings(Seq(
+    scalaVersion := "2.12.1",
+    crossScalaVersions := Seq("2.11.8", "2.12.1"),
+    parallelExecution in Global := false
+))
   .settings(libraryDependencies ++=
     compileScope(http, kamonCore, kamonAkka) ++
     testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
@@ -43,3 +47,9 @@ lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground",file("ka
     testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
     providedScope(aspectJ))
   .settings(noPublishing: _*)
+  .settings(settingsForPlayground: _*)
+
+lazy val settingsForPlayground: Seq[Setting[_]] = Seq(
+  connectInput in run := true,
+  cancelable in Global := true
+)
