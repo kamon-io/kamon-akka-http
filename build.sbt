@@ -14,7 +14,7 @@
  * =========================================================================================
  */
 
-val kamonCore        = "io.kamon" %% "kamon-core"            % "0.6.6-SNAPSHOT"
+val kamonCore        = "io.kamon" %% "kamon-core"            % "0.6.6"
 val kamonAkka        = "io.kamon" %% "kamon-akka-2.4"        % "0.6.5"
 val kamonLogReporter = "io.kamon" %% "kamon-log-reporter"    % "0.6.5"
 
@@ -29,7 +29,10 @@ lazy val kamonAkkaHttp = Project("kamon-akka-http", file("kamon-akka-http"))
   .settings(name := "kamon-akka-http")
   .settings(resolvers ++=  resolutionRepos)
   .settings(aspectJSettings: _*)
-  .settings(Seq(scalaVersion := "2.12.1",crossScalaVersions := Seq("2.11.8", "2.12.1"),testGrouping in Test := singleTestPerJvm((definedTests in Test).value, (javaOptions in Test).value)))
+  .settings(Seq(
+    scalaVersion := "2.12.1",
+    crossScalaVersions := Seq("2.11.8", "2.12.1"),
+    testGrouping in Test := singleTestPerJvm((definedTests in Test).value, (javaOptions in Test).value)))
   .settings(libraryDependencies ++=
     compileScope(http, kamonCore, kamonAkka) ++
       testScope(httpTestKit, scalatest, slf4jApi, slf4jnop) ++
@@ -37,7 +40,9 @@ lazy val kamonAkkaHttp = Project("kamon-akka-http", file("kamon-akka-http"))
 
 lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground", file("kamon-akka-http-playground"))
   .dependsOn(kamonAkkaHttp)
-  .settings(Seq(scalaVersion := "2.12.1", crossScalaVersions := Seq("2.11.8", "2.12.1")))
+  .settings(Seq(
+    scalaVersion := "2.12.1",
+    crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(resolvers ++=  resolutionRepos)
   .settings(noPublishing: _*)
   .settings(settingsForPlayground: _*)
@@ -51,10 +56,7 @@ lazy val settingsForPlayground: Seq[Setting[_]] = Seq(
   cancelable in Global := true
 )
 
-lazy val resolutionRepos = Seq(
-  "kamon-io bintray" at "http://dl.bintray.com/kamon-io/releases",
-  "kamon-io snapshots"  at "http://snapshots.kamon.io"
-)
+lazy val resolutionRepos = Seq(Resolver.bintrayIvyRepo("kamon-io", "sbt-plugins"))
 
 import sbt.Tests._
 def singleTestPerJvm(tests: Seq[TestDefinition], jvmSettings: Seq[String]): Seq[Group] =
