@@ -8,7 +8,7 @@ Kamon akka-http
 
 *Kamon Akka Http* module provides bytecode instrumentation to gather metrics and perform automatic TraceContext propagation on your behalf, both on the client and server side.
 
-##This module currently supports:
+## This module currently supports:
 * [Traces] in the server side and allow configure the ```X-Trace-Context``` in order to pass into the current request.
 * [HttpServerMetrics] that gather metrics with status code and categories + request-active and connection-open (as your snippet)
 * [Segments] for client-side requests
@@ -96,8 +96,8 @@ By default, the name generator bundled with the *kamon-akka-http* module will us
 * Take some ideas from [spray-kamon-metrics]
 
 [spray-kamon-metrics]: http://engineering.monsanto.com/2015/09/24/better-spray-metrics-with-kamon/
-[Traces]: https://github.com/kamon-io/kamon-akka-http/blob/master/src/main/scala/kamon/akka/http/instrumentation/FlowWrapper.scala#L36-L49
+[Traces]: https://github.com/kamon-io/kamon-akka-http/blob/master/kamon-akka-http/src/main/scala/kamon/akka/http/instrumentation/FlowWrapper.scala#L36-L49
 [HttpServerMetrics]:https://github.com/kamon-io/Kamon/blob/master/kamon-core/src/main/scala/kamon/util/http/HttpServerMetrics.scala#L27
-[Segments]:https://github.com/kamon-io/kamon-akka-http/blob/master/src/main/scala/kamon/akka/http/instrumentation/ClientRequestInstrumentation.scala#L32-L45
+[Segments]:https://github.com/kamon-io/kamon-akka-http/blob/master/kamon-akka-http/src/main/scala/kamon/akka/http/instrumentation/ClientRequestInstrumentation.scala#L32-L45
 [sbt-aspectj-runner]: https://github.com/kamon-io/sbt-aspectj-runner
 [reference.conf]: https://github.com/kamon-io/kamon-akka-http/blob/master/src/main/resources/reference.conf
