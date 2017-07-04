@@ -7,6 +7,12 @@
 
     <!-- Akka Http Client -->
     <aspect name="kamon.akka.http.instrumentation.ClientRequestInstrumentation"/>
+    
+    <!-- Akka Http Client, pool connection state -->
+    <aspect name="kamon.akka.http.instrumentation.PoolConductorInstrumentation"/>
+
+    <!-- Akka Http Client, pool queue state -->
+    <aspect name="akka.http.impl.engine.client.PoolInterfaceActorInstrumentation"/>
   </aspects>
 
   <weaver options="-warn:none">
