@@ -16,44 +16,22 @@
 
 package kamon.testkit
 
-import com.typesafe.config.Config
+import akka.http.scaladsl.model.headers.RawHeader
+import com.typesafe.config.ConfigValueFactory
 import kamon.Kamon
-import kamon.metric.{ Entity, EntitySnapshot, SubscriptionsDispatcher }
-import kamon.trace.TraceContext
-import kamon.util.LazyActorRef
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+import kamon.trace.SpanCodec.B3
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 abstract class BaseKamonSpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
-  lazy val collectionContext = Kamon.metrics.buildDefaultCollectionContext
 
-  def config: Config =
-    Kamon.config
+  def traceIdHeader(id: String): RawHeader = RawHeader(B3.Headers.TraceIdentifier, id)
+  def spanIdHeader(id: String): RawHeader = RawHeader(B3.Headers.SpanIdentifier, id)
+  def parentSpanIdHeader(id: String): RawHeader = RawHeader(B3.Headers.ParentSpanIdentifier, id)
 
-  def newContext(name: String): TraceContext =
-    Kamon.tracer.newContext(name)
-
-  def newContext(name: String, token: String): TraceContext =
-    Kamon.tracer.newContext(name, Option(token))
-
-  def clean(name: String, category: String): Unit = {
-    Kamon.metrics.find(name, category).foreach(_.collect(collectionContext))
+  def updateAndReloadConfig(key: String, value: AnyRef) = {
+    val updatedConfig = Kamon.config()
+      .withValue(s"kamon.akka-http.$key", ConfigValueFactory.fromAnyRef(value))
+    Kamon.reconfigure(updatedConfig)
   }
 
-  def takeSnapshotOf(name: String, category: String): EntitySnapshot = {
-    val recorder = Kamon.metrics.find(name, category).get
-    recorder.collect(collectionContext)
-  }
-
-  def takeSnapshotOf(name: String, category: String, tags: Map[String, String]): EntitySnapshot = {
-    val recorder = Kamon.metrics.find(Entity(name, category, tags)).get
-    recorder.collect(collectionContext)
-  }
-
-  def flushSubscriptions(): Unit = {
-    val subscriptionsField = Kamon.metrics.getClass.getDeclaredField("_subscriptions")
-    subscriptionsField.setAccessible(true)
-    val subscriptions = subscriptionsField.get(Kamon.metrics).asInstanceOf[LazyActorRef]
-
-    subscriptions.tell(SubscriptionsDispatcher.Tick)
-  }
 }

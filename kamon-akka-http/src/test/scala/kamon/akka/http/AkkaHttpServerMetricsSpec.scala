@@ -1,3 +1,4 @@
+
 /*
  * =========================================================================================
  * Copyright © 2013-2016 the kamon project <http://kamon.io/>
@@ -12,7 +13,7 @@
  * either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  * =========================================================================================
- */
+*/
 
 package kamon.akka.http
 
@@ -23,13 +24,14 @@ import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
 import kamon.Kamon
-import kamon.testkit.{ BaseKamonSpec, WebServer, WebServerSupport }
+import kamon.testkit.{BaseKamonSpec, MetricInspection, WebServer, WebServerSupport}
+import kamon.trace.Span
 import org.scalatest.Matchers
 
 import scala.concurrent.duration._
 import scala.concurrent._
 
-class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
+class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers with MetricInspection {
 
   import WebServerSupport.Endpoints._
 
@@ -45,13 +47,11 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
   val webServer = WebServer(interface, port)
 
   override protected def beforeAll(): Unit = {
-    Kamon.start()
     Await.result(webServer.start(), timeoutStartUpServer)
   }
 
   override protected def afterAll(): Unit = {
     Await.result(webServer.shutdown(), timeoutStartUpServer)
-    Kamon.shutdown()
   }
 
   "the Akka Http Server metrics instrumentation" should {
@@ -59,9 +59,6 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
 
       val connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
         Http().outgoingConnection(interface, port)
-
-      // Erase metrics recorder from previous tests.
-      clean("UnnamedTrace", "trace")
 
       val okResponsesFut = for (repetition ← 1 to 10) yield {
         Source.single(HttpRequest(uri = traceOk.withSlash))
@@ -77,17 +74,15 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
 
       Await.result(Future.sequence(okResponsesFut ++ badRequestResponsesFut), timeoutStartUpServer)
 
-      val snapshot = takeSnapshotOf("UnnamedTrace", "trace")
-      snapshot.histogram("elapsed-time").get.numberOfMeasurements should be(15)
+      val availableKeys = Span.Metrics.ProcessingTime.partialRefine(Map.empty)
+      availableKeys.map(k => Span.Metrics.ProcessingTime.refine(k).distribution(true).count).sum should be(15)
+
     }
 
     "record http server metrics for all the requests" in {
 
       val connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
         Http().outgoingConnection("127.0.0.1", port)
-
-      // Erase metrics recorder from previous tests.
-      clean("akka-http-server", "http-server")
 
       val okResponsesFut = for (repetition ← 1 to 10) yield {
         Source.single(HttpRequest(uri = metricsOk.withSlash))
@@ -103,14 +98,21 @@ class AkkaHttpServerMetricsSpec extends BaseKamonSpec with Matchers {
 
       Await.result(Future.sequence(okResponsesFut ++ badRequestResponsesFut), timeoutStartUpServer)
 
-      val snapshot = takeSnapshotOf("akka-http-server", "http-server")
-      snapshot.counter("UnnamedTrace_200").get.count should be(10)
-      snapshot.counter("UnnamedTrace_400").get.count should be(5)
-      snapshot.counter("200").get.count should be(10)
-      snapshot.counter("400").get.count should be(5)
+      Span.Metrics.ProcessingTime.refine(Map(
+        "error" -> "false",
+        "span.kind" -> "server",
+        "operation" -> WebServerSupport.Endpoints.metricsOk.withSlash
+      )).distribution(true).count should be(10)
 
-      snapshot.minMaxCounter("request-active") should be(defined)
-      snapshot.minMaxCounter("connection-open") should be(defined)
+      Span.Metrics.ProcessingTime.refine(Map(
+        "error" -> "true",
+        "span.kind" -> "server",
+        "operation" -> "not-found"
+      )).distribution(true).count should be(5)
+
+      AkkaHttpServerMetrics.requestActive.distribution(true).max should be > 0L
+      AkkaHttpServerMetrics.connectionOpen.distribution(true).max should be > 0L
+
     }
   }
 }

@@ -12,26 +12,26 @@
  * either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  * =========================================================================================
- */
+*/
 
 package kamon.akka.http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Flow
 import kamon.Kamon
-import kamon.testkit.{ BaseKamonSpec, WebServer, WebServerSupport }
-import kamon.trace.{ SegmentCategory, TraceContext, Tracer }
+import kamon.akka.http.ClientInstrumentationLevel.{HostLevelAPI, RequestLevelAPI}
+import kamon.testkit._
+import kamon.trace.Span
 
 import scala.concurrent.duration._
-import scala.concurrent.{ Future, _ }
+import scala.concurrent.{Future, _}
 
-class AkkaHttpClientInstrumentationSpec extends BaseKamonSpec {
-
+class AkkaHttpClientInstrumentationSpec extends BaseKamonSpec with MetricInspection {
+  import Span.Metrics._
   import WebServerSupport.Endpoints._
 
   implicit private val system = ActorSystem()
@@ -48,122 +48,103 @@ class AkkaHttpClientInstrumentationSpec extends BaseKamonSpec {
     Http().outgoingConnection(interface, port)
 
   override protected def beforeAll(): Unit = {
-    Kamon.start()
     Await.result(webServer.start(), timeoutTest)
   }
 
   override protected def afterAll(): Unit = {
     Await.result(webServer.shutdown(), timeoutTest)
-    Kamon.shutdown()
   }
 
   "the akka-http client instrumentation" when {
     "using the request-level api" should {
-      "include the trace token header if automatic-trace-token-propagation is enabled" in {
-        enableAutomaticTraceTokenPropagation()
-
-        val (testContext: TraceContext, responseFut: Future[HttpResponse]) = Tracer.withContext(newContext("include-trace-token-header-at-request-level-api")) {
-          val rF = Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathOk"))
-          (Tracer.currentContext, rF)
+      "include the trace token header" in {
+        flushMetrics
+        val span = Kamon.buildSpan("request-level-api").start()
+        val responseFut: Future[HttpResponse] = Kamon.withSpan(span) {
+          Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathOk"))
         }
 
         val httpResponse = Await.result(responseFut, timeoutTest)
 
         httpResponse.status should be(OK)
-        testContext.finish()
+        span.finish()
 
-        httpResponse.headers should contain(traceTokenHeader(testContext.token))
-      }
-
-      "not include the trace token header if automatic-trace-token-propagation is disabled" in {
-        disableAutomaticTraceTokenPropagation()
-
-        val (testContext: TraceContext, responseFut: Future[HttpResponse]) = Tracer.withContext(newContext("do-not-include-trace-token-header-at-request-level-api")) {
-          val rF = Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathOk"))
-          (Tracer.currentContext, rF)
-        }
-
-        val httpResponse = Await.result(responseFut, timeoutTest)
-
-        httpResponse.status should be(OK)
-        testContext.finish()
-
-        httpResponse.headers should not contain traceTokenHeader(testContext.token)
+        httpResponse.headers should contain(traceIdHeader(span.context().traceID.string))
+        //httpResponse.headers should contain(parentSpanIdHeader(span.context().spanID.string))
       }
 
       "start and finish a segment that must be named using the request level api name assignation" in {
-        enableAutomaticTraceTokenPropagation()
         enablePipeliningSegmentCollectionStrategy()
+        flushMetrics
 
-        val (testContext: TraceContext, responseFut: Future[HttpResponse]) = Tracer.withContext(newContext("assign-name-to-segment-with-request-level-api")) {
-          val rF = Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathOk"))
-          (Tracer.currentContext, rF)
+        val operation = "assign-name-to-segment-with-request-level-api"
+        val span = Kamon.buildSpan(operation).start()
+        val responseFut: Future[HttpResponse] = Kamon.withSpan(span) {
+          Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathOk"))
         }
 
         val httpResponse = Await.result(responseFut, timeoutTest)
 
         httpResponse.status should be(OK)
-        testContext.finish()
+        span.finish()
 
-        val traceMetricsSnapshot = takeSnapshotOf("assign-name-to-segment-with-request-level-api", "trace")
-        traceMetricsSnapshot.histogram("elapsed-time").get.numberOfMeasurements should be(1)
+        val metricKeys = Span.Metrics.ProcessingTime.partialRefine(Map.empty)
 
-        val segmentMetricsSnapshot = takeSnapshotOf(s"request-level /$dummyPathOk", "trace-segment",
-          tags = Map(
-            "trace" -> "assign-name-to-segment-with-request-level-api",
-            "category" -> SegmentCategory.HttpClient,
-            "library" -> AkkaHttpExtension.SegmentLibraryName))
+        metricKeys.map(_.get("operation")).flatten should contain allOf (
+          "assign-name-to-segment-with-request-level-api", //parent
+          "request-level /dummy-path" //request level
+        )
 
-        segmentMetricsSnapshot.histogram("elapsed-time").get.numberOfMeasurements should be(1)
+        val parent = metricKeys.find(_("operation") == "assign-name-to-segment-with-request-level-api").get
+        val client = metricKeys.find(_("operation") == "request-level /dummy-path").get
+
+        ProcessingTime.refine(parent).distribution(true).count should be (1)
+        ProcessingTime.refine(client).distribution(true).count should be (1)
       }
 
+
       "start and finish a segment in case of error" in {
-        enableAutomaticTraceTokenPropagation()
+        flushMetrics
         enablePipeliningSegmentCollectionStrategy()
 
-        val (testContext: TraceContext, responseFut: Future[HttpResponse]) = Tracer.withContext(newContext("assign-name-to-segment-with-request-level-api")) {
-          val rF = Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathError"))
-          (Tracer.currentContext, rF)
-        }
+        val responseFut: Future[HttpResponse] =
+          Http().singleRequest(HttpRequest(uri = s"http://$interface:$port/$dummyPathError"))
 
         val httpResponse = Await.result(responseFut, timeoutTest)
 
         httpResponse.status should be(InternalServerError)
-        testContext.finishWithError(new Exception("An Error Ocurred"))
 
-        val traceMetricsSnapshot = takeSnapshotOf("assign-name-to-segment-with-request-level-api", "trace")
-        traceMetricsSnapshot.counter("errors").get.count should be(1)
-        traceMetricsSnapshot.histogram("elapsed-time").get.numberOfMeasurements should be(1)
+        val keys = Span.Metrics.ProcessingTime.partialRefine(Map(
+            "operation" -> dummyPathError.withSlash,
+            "error" -> "true"
+          )
+        )
 
-        val segmentMetricsSnapshot = takeSnapshotOf(s"request-level /$dummyPathError", "trace-segment",
-          tags = Map(
-            "trace" -> "assign-name-to-segment-with-request-level-api",
-            "category" -> SegmentCategory.HttpClient,
-            "library" -> AkkaHttpExtension.SegmentLibraryName))
+        keys should not be empty
 
-        segmentMetricsSnapshot.histogram("elapsed-time").get.numberOfMeasurements should be(1)
+        Span.Metrics.ProcessingTime.refine(keys.head).distribution(true).count should be (1)
       }
     }
   }
 
-  def traceTokenHeader(token: String): RawHeader = RawHeader(AkkaHttpExtension.settings.traceTokenHeaderName, token)
-
   def enablePipeliningSegmentCollectionStrategy(): Unit = setSegmentCollectionStrategy(ClientInstrumentationLevel.RequestLevelAPI)
-  def enableAutomaticTraceTokenPropagation(): Unit = setIncludeTraceToken(true)
-  def disableAutomaticTraceTokenPropagation(): Unit = setIncludeTraceToken(false)
 
   def setSegmentCollectionStrategy(strategy: ClientInstrumentationLevel.Level): Unit = {
-    val target = AkkaHttpExtension.settings
-    val field = target.getClass.getDeclaredField("clientInstrumentationLevel")
-    field.setAccessible(true)
-    field.set(target, strategy)
+    val level = strategy match {
+      case RequestLevelAPI => "request-level"
+      case HostLevelAPI => "host-level"
+      case other           ⇒ sys.error(s"Invalid client instrumentation level [$other] found in configuration.")
+    }
+    updateAndReloadConfig("client.instrumentation-level", level)
   }
 
-  def setIncludeTraceToken(include: Boolean): Unit = {
-    val target = AkkaHttpExtension.settings
-    val field = target.getClass.getDeclaredField("includeTraceTokenHeader")
-    field.setAccessible(true)
-    field.set(target, include)
+  def flushMetrics = {
+    val keys = ProcessingTime.partialRefine(Map.empty)
+    keys.foreach(key => ProcessingTime.refine(key).distribution(true))
   }
+
+
+
 
 }
+
