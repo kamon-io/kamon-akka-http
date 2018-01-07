@@ -17,6 +17,7 @@
 package kamon.akka.http
 
 import kamon.Kamon
+import kamon.metric.MeasurementUnit.time
 
 
 object AkkaHttpMetrics {
@@ -34,4 +35,12 @@ object AkkaHttpMetrics {
     *    - port: Listening port
     */
   val OpenConnections = Kamon.rangeSampler("akka.http.server.open-connections")
+
+
+  /**
+    *  Time spent since a request is ready to be sent until it is actually dispatched to a connection. Tags:
+    *    - host
+    *    - port
+    */
+  val ClientPoolWaitTime = Kamon.histogram("akka.http.client.queuing-time", time.nanoseconds)
 }

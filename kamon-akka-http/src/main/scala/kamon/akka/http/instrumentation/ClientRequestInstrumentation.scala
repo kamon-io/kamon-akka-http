@@ -16,13 +16,16 @@
 
 package akka.http.impl.engine.client
 
+import java.time.Instant
+
 import akka.dispatch.ExecutionContexts
 import akka.http.impl.engine.client.PoolInterfaceActor.PoolRequest
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import kamon.Kamon
-import kamon.akka.http.AkkaHttp
-import kamon.context.HasContext
+import kamon.akka.http.{AkkaHttp, AkkaHttpMetrics}
+import kamon.context.{Context, HasContext}
+import kamon.metric.Histogram
 import kamon.trace.SpanCustomizer
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation._
@@ -67,21 +70,61 @@ class ClientRequestInstrumentation {
     responseFuture
   }
 
+  trait HasContextWithNanos {
+    def context: Context
+    def nanos: Long
+  }
+
+  trait PoolInterfaceActorWithMetrics {
+    def initialize(poolGateway: PoolGateway): Unit
+    def recordWaitTime(waitTime: Long): Unit
+  }
+
+  def newHasInstantContext(capturedContext: Context): HasContextWithNanos = new HasContextWithNanos {
+    override val context: Context = capturedContext
+    override val nanos: Long = Kamon.clock().nanos()
+  }
+
+  def newPoolInterfaceActorWithMetrics(): PoolInterfaceActorWithMetrics = new PoolInterfaceActorWithMetrics {
+    private var waitTimeHistogram: Histogram = _
+
+    override def initialize(poolGateway: PoolGateway): Unit = {
+      waitTimeHistogram = AkkaHttpMetrics.ClientPoolWaitTime.refine(Map(
+        "host" -> poolGateway.hcps.host,
+        "port" -> poolGateway.hcps.port.toString
+      ))
+    }
+
+    override def recordWaitTime(waitTime: Long): Unit =
+      if(waitTimeHistogram != null) waitTimeHistogram.record(waitTime)
+  }
+
+  @DeclareMixin("akka.http.impl.engine.client.PoolInterfaceActor")
+  def mixinMetricsIntoPoolInterfaceActor(): PoolInterfaceActorWithMetrics = newPoolInterfaceActorWithMetrics()
+
+  @After("execution(akka.http.impl.engine.client.PoolInterfaceActor.new(..)) && this(poolInterfaceActor) && args(poolGateway, *)")
+  def afterPoolInterfaceActorConstructor(poolInterfaceActor: PoolInterfaceActor with PoolInterfaceActorWithMetrics, poolGateway: PoolGateway): Unit = {
+    println("INITIALIZING")
+    poolInterfaceActor.initialize(poolGateway)
+  }
 
   @DeclareMixin("akka.http.impl.engine.client.PoolInterfaceActor.PoolRequest")
-  def mixinContextIntoPoolRequest(): HasContext = HasContext.fromCurrentContext()
+  def mixinContextIntoPoolRequest(): HasContextWithNanos = newHasInstantContext(Kamon.currentContext())
 
   @After("execution(akka.http.impl.engine.client.PoolInterfaceActor.PoolRequest.new(..)) && this(poolRequest)")
-  def afterPoolRequestConstructor(poolRequest: HasContext): Unit = {
+  def afterPoolRequestConstructor(poolRequest: HasContextWithNanos): Unit = {
     // Initialize the Context in the Thread creating the PoolRequest
     poolRequest.context
   }
 
-  @Around("execution(* akka.http.impl.engine.client.PoolInterfaceActor.dispatchRequest(..)) && args(poolRequest)")
-  def aroundDispatchRequest(pjp: ProceedingJoinPoint, poolRequest: PoolRequest with HasContext): Any = {
+  @Around("execution(* akka.http.impl.engine.client.PoolInterfaceActor.dispatchRequest(..)) && this(poolInterfaceActor) && args(poolRequest)")
+  def aroundDispatchRequest(pjp: ProceedingJoinPoint, poolInterfaceActor: PoolInterfaceActor with PoolInterfaceActorWithMetrics, poolRequest: PoolRequest with HasContextWithNanos): Any = {
+    val waitTime = Kamon.clock().nanos() -  poolRequest.nanos
+    poolInterfaceActor.recordWaitTime(waitTime)
+
     val contextHeaders = Kamon.contextCodec().HttpHeaders.encode(poolRequest.context).values.map(c => RawHeader(c._1, c._2)).toList
     val requestWithContext = poolRequest.request.withHeaders(contextHeaders)
 
-    pjp.proceed(Array(poolRequest.copy(request = requestWithContext)))
+    pjp.proceed(Array(poolInterfaceActor, poolRequest.copy(request = requestWithContext)))
   }
 }

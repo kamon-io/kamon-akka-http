@@ -19,7 +19,7 @@ package kamon.akka.http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
-import akka.http.scaladsl.settings.ClientConnectionSettings
+import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import kamon.testkit._
@@ -29,7 +29,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, OptionValues, WordSpecLike}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
+class AkkaHttpClientMetricsSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
   with Reconfigure with TestWebServer with Eventually with OptionValues {
 
   import AkkaHttpMetrics._
@@ -41,37 +41,34 @@ class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAn
 
   val timeoutTest: FiniteDuration = 5 second
   val interface = "127.0.0.1"
-  val port = 8083
+  val port = 8086
   val webServer = startServer(interface, port)
+  val clientPoolTags = Map(
+    "host" -> interface,
+    "port" -> port.toString
+  )
 
-  "the Akka HTTP server instrumentation" should {
-    "track the number of open connections and active requests on the Server side" in {
-      val httpServerMetricsTags = Map(
-        "interface" -> interface,
-        "port" -> port.toString
-      )
-
+  "the Akka HTTP client instrumentation" should {
+    "track the wait time for connection pools" in {
       for(_ <- 1 to 8) yield {
-        sendRequest(HttpRequest(uri = s"http://$interface:$port/$waitFiveAndClose"))
+        sendRequest(HttpRequest(uri = s"http://$interface:$port/$waitTwo"))
       }
 
       eventually(timeout(10 seconds)) {
-        OpenConnections.refine(httpServerMetricsTags).distribution().max shouldBe(8)
-        ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(8)
-      }
+        val x = ClientPoolWaitTime.refine(clientPoolTags).distribution(resetState = false)
+        //println(x.buckets)
 
-      eventually(timeout(20 seconds)) {
-        OpenConnections.refine(httpServerMetricsTags).distribution().max shouldBe(0)
-        ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(0)
+        x.max shouldBe(193)
       }
     }
   }
 
-  def sendRequest(request: HttpRequest): Future[HttpResponse] = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(1 second)
-    Source.single(request)
-      .via(Http().outgoingConnection(interface, port, settings = connectionSettings))
-      .runWith(Sink.head)
+  val poolSettings = ConnectionPoolSettings(system)
+    .withMaxConnections(1)
+    .withMaxOpenRequests(2)
+
+  def sendRequest(request: HttpRequest): Future[_] = {
+    Http().singleRequest(request, settings = poolSettings).map(rsp => rsp.discardEntityBytes(materializer))
   }
 
   override protected def afterAll(): Unit = {

@@ -18,6 +18,7 @@ package kamon.testkit
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCode
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.Connection
@@ -28,7 +29,9 @@ import kamon.akka.http.TracingDirectives
 import kamon.context.Key
 import org.json4s.{DefaultFormats, native}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.duration._
+import scala.util.Try
 
 trait TestWebServer extends TracingDirectives {
   implicit val serialization = native.Serialization
@@ -40,6 +43,12 @@ trait TestWebServer extends TracingDirectives {
 
     implicit val ec: ExecutionContext = system.dispatcher
     implicit val materializer = ActorMaterializer()
+
+    def scheduleOk(delay: FiniteDuration): Future[StatusCode] = {
+      val promise = Promise[StatusCode]
+      system.scheduler.scheduleOnce(delay, new Runnable { override def run(): Unit = promise.complete(Try(OK)); println("Completeting the one with " + delay)})
+      promise.future
+    }
 
     val routes = logRequest("routing-request") {
       get {
@@ -79,12 +88,16 @@ trait TestWebServer extends TracingDirectives {
             )
           }
         } ~
-        path(waitTen) {
+        path(waitFiveAndClose) {
           respondWithHeader(Connection("close")) {
             complete {
-              Thread.sleep(5000)
-              OK
+              scheduleOk(5 seconds)
             }
+          }
+        } ~
+        path(waitTwo) {
+          complete {
+            scheduleOk(2 seconds)
           }
         }
       }
@@ -103,7 +116,8 @@ trait TestWebServer extends TracingDirectives {
     val metricsBadRequest: String = "record-http-metrics-bad-request"
     val replyWithHeaders: String = "reply-with-headers"
     val basicContext: String = "basic-context"
-    val waitTen: String = "wait"
+    val waitFiveAndClose: String = "wait"
+    val waitTwo: String = "wait-two"
 
     implicit class Converter(endpoint: String) {
       implicit def withSlash: String = "/" + endpoint
