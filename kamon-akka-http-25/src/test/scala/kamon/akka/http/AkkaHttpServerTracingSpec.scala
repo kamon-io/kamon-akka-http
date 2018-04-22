@@ -18,7 +18,7 @@ package kamon.akka.http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
+import akka.http.scaladsl.model.{HttpEntity, HttpMethods, HttpRequest}
 import akka.stream.ActorMaterializer
 import kamon.Kamon
 import kamon.context.{Context, Key, TextMap}
@@ -30,6 +30,7 @@ import org.json4s.native.JsonMethods.parse
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{BeforeAndAfterAll, Matchers, OptionValues, WordSpecLike}
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
