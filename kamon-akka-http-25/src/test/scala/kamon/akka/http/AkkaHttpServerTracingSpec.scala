@@ -133,6 +133,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
         basicContext("custom-string-key") shouldBe "hello for the server"
         basicContext("trace-id") shouldBe parentSpan.context().traceID.string
       }
+
     }
 
     def stringTag(span: Span.FinishedSpan)(tag: String): String = {

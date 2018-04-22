@@ -22,13 +22,13 @@ val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.0"
 val akkaHttpJson        = "de.heikoseeberger" %% "akka-http-json4s" % "1.18.1"
 val json4sNative        = "org.json4s" %% "json4s-native" % "3.5.3"
 
-val http24         = "com.typesafe.akka" %% "akka-http"          % "10.0.11"
+val http24         = "com.typesafe.akka" %% "akka-http"          % "10.1.1"
 val stream24       = "com.typesafe.akka" %% "akka-stream"        % "2.4.20"
-val httpTestKit24  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.0.11"
+val httpTestKit24  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.1.1"
 
-val http25         = "com.typesafe.akka" %% "akka-http"          % "10.0.11"
+val http25         = "com.typesafe.akka" %% "akka-http"          % "10.1.1"
 val stream25       = "com.typesafe.akka" %% "akka-stream"        % "2.5.8"
-val httpTestKit25  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.0.11"
+val httpTestKit25  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.1.1"
 
 
 

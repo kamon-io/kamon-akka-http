@@ -18,7 +18,7 @@ package kamon.akka.http.instrumentation
 
 import akka.NotUsed
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
-import akka.stream.scaladsl.{BidiFlow, Flow}
+import akka.stream.scaladsl.{BidiFlow, Flow, Sink}
 import akka.util.ByteString
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.{Around, Aspect}
@@ -34,7 +34,7 @@ class ServerRequestInstrumentation {
     handler: Flow[HttpRequest, HttpResponse, Any]
   ): AnyRef = {
 
-    pjp.proceed(Array(ServerFlowWrapper(baseFlow), handler))
+    pjp.proceed(Array(ServerFlowWrapper(baseFlow), handler.alsoTo(Sink.foreach(r => println(s"Also to sink $r")))))
 
   }
 

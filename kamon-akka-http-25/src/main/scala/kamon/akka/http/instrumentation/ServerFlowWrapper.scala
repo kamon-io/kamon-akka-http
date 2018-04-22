@@ -159,23 +159,49 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
   override def createLogic(inheritedAttributes: Attributes) = new GraphStageLogic(shape) {
 
 
+
+    private def failure(ex: Throwable) = {
+
+      println("onUpstreamFailure")
+      ex.printStackTrace()
+    }
+
     /*
      * In1 ~> WrapOut1
      */
     setHandler(
       requestStreamIn, new InHandler {
         override def onPush(): Unit = {
-          val in = grab(requestStreamIn)
-          push(requestStreamOut, in)
+          if (isAvailable(requestStreamIn)){
+            val in = grab(requestStreamIn)
+
+            println("requestStreamIn onPush")
+            push(requestStreamOut, in)
+          } else {
+            complete(requestStreamOut)
+          }
         }
-        override def onUpstreamFinish(): Unit = complete(requestStreamOut)
+        override def onUpstreamFinish(): Unit = {
+          println(s"responseStreamIn onUpstreamFinish")
+          complete(requestStreamOut)
+        }
+        override def onUpstreamFailure(ex: Throwable): Unit = {
+          failure(ex)
+          super.onUpstreamFailure(ex)
+        }
       }
     )
 
     setHandler(
       requestStreamOut, new OutHandler {
-        override def onPull(): Unit = pull(requestStreamIn)
-        override def onDownstreamFinish(): Unit = cancel(requestStreamIn)
+        override def onPull(): Unit = {
+          println("requestStreamOut onPull")
+          pull(requestStreamIn)
+        }
+        override def onDownstreamFinish(): Unit = {
+          println(s"requestStreamOut onDownstreamFinish")
+          cancel(requestStreamIn)
+        }
       }
     )
     /*
@@ -193,7 +219,7 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
       requestIn, new InHandler {
         override def onPush(): Unit = {
           val request = grab(requestIn)
-
+          println("requestIn onPush")
           val parentContext = extractContext(request)
           val span = Kamon.buildSpan(serverOperationName(request))
           .asChildOf(parentContext.get(Span.ContextKey))
@@ -209,14 +235,28 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
 
           push(requestOut, request)
         }
-        override def onUpstreamFinish(): Unit = complete(requestOut)
+        override def onUpstreamFinish(): Unit = {
+          println(s"requestIn onUpstreamFinish")
+          complete(requestOut)
+        }
+
+        override def onUpstreamFailure(ex: Throwable): Unit = {
+          failure(ex)
+          super.onUpstreamFailure(ex)
+        }
       }
     )
 
     setHandler(
       requestOut, new OutHandler {
-        override def onPull(): Unit = pull(requestIn)
-        override def onDownstreamFinish(): Unit = cancel(requestIn)
+        override def onPull(): Unit = {
+          println("requestOut onPull")
+          pull(requestIn)
+        }
+        override def onDownstreamFinish(): Unit = {
+          println(s"requestOut onDownstreamFinish")
+          cancel(requestIn)
+        }
       }
     )
     /*
@@ -233,7 +273,7 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
       responseIn, new InHandler {
         override def onPush(): Unit = {
           val response: HttpResponse = grab(responseIn)
-          println(s"responseIn onPush ${response}")
+          println(s"responseIn onPush")
 
           val status = response.status.intValue()
 
@@ -256,7 +296,15 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
 
 
         }
-        override def onUpstreamFinish(): Unit = complete(responseOut)
+        override def onUpstreamFinish(): Unit = {
+          println(s"responseIn onUpstreamFinish")
+          complete(responseOut)
+        }
+
+        override def onUpstreamFailure(ex: Throwable): Unit = {
+          failure(ex)
+          super.onUpstreamFailure(ex)
+        }
       }
     )
 
@@ -267,7 +315,11 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
 
           pull(responseIn)
         }
-        override def onDownstreamFinish(): Unit = cancel(responseIn)
+        override def onDownstreamFinish(): Unit = {
+          println(s"responseOut onDownstreamFinish")
+
+          cancel(responseIn)
+        }
       }
     )
     /*
@@ -283,29 +335,52 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
       responseStreamIn, new InHandler {
         override def onPush(): Unit = {
           val in = grab(responseStreamIn)
-          println(s"responseStreamIn onPush ${in}")
+          println(s"responseStreamIn onPush")
 
 
           push(responseStreamOut, in)
         }
         override def onUpstreamFinish(): Unit = {
-
+          println("responseStreamIn onUpstreamFinish. Completing stage")
           Kamon.currentSpan().finish()
           completeStage()
+        }
+
+        override def onUpstreamFailure(ex: Throwable): Unit = {
+          failure(ex)
+          super.onUpstreamFailure(ex)
         }
       }
     )
 
     setHandler(
       responseStreamOut, new OutHandler {
-        override def onPull(): Unit = pull(responseStreamIn)
-        override def onDownstreamFinish(): Unit = cancel(responseStreamIn)
+        override def onPull(): Unit = {
+          println("requestStreamOut onPull")
+          pull(responseStreamIn)
+        }
+        override def onDownstreamFinish(): Unit = {
+          println(s"responseStreamOut onDownstreamFinish")
+          cancel(responseStreamIn)
+        }
+
+
       }
     )
     /*
      * WrapIn2 ~> Out2
      */
 
+    override def preStart(): Unit = {
+
+      println("prestart")
+      super.preStart()
+    }
+    override def postStop(): Unit = {
+      println("poststop")
+
+      super.postStop()
+    }
   }
 
 
