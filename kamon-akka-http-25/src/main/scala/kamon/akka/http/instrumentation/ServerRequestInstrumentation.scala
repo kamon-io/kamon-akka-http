@@ -34,7 +34,7 @@ class ServerRequestInstrumentation {
     handler: Flow[HttpRequest, HttpResponse, Any]
   ): AnyRef = {
 
-    pjp.proceed(Array(ServerFlowWrapper(baseFlow), handler.alsoTo(Sink.foreach(r => println(s"Also to sink $r")))))
+    pjp.proceed(Array(ServerFlowWrapper(baseFlow), handler))
 
   }
 

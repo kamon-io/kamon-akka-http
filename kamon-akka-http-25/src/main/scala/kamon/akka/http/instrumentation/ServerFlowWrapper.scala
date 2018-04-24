@@ -20,7 +20,7 @@ import akka.NotUsed
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream._
-import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL}
+import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL, Keep}
 import akka.stream.stage._
 import akka.util.ByteString
 import kamon.Kamon
@@ -30,6 +30,7 @@ import kamon.trace.Span
 
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.immutable
+import scala.concurrent.ExecutionContext
 
 
 object ServerFlowWrapper {
@@ -66,9 +67,9 @@ object ServerFlowWrapper {
     })
   }
 
-  private[instrumentation] def includeTraceToken(response: HttpResponse, context: KamonContext): HttpResponse = response.withHeaders(
+  private[instrumentation] def includeTraceToken(response: HttpResponse, context: KamonContext, span: Span)(implicit ex: ExecutionContext): HttpResponse = response.withHeaders(
       response.headers ++ Kamon.contextCodec().HttpHeaders.encode(context).values.map(k => RawHeader(k._1, k._2))
-    ).transformEntityDataBytes(Flow[ByteString].map(identity))
+    ).transformEntityDataBytes(Flow[ByteString].map(identity).watchTermination()(Keep.right).mapMaterializedValue(_.onComplete(_ => span.finish())))
 
   private[instrumentation]  def extractContext(request: HttpRequest) = Kamon.contextCodec().HttpHeaders.decode(new TextMap {
     private val headersKeyValueMap = request.headers.map(h => h.name -> h.value()).toMap
@@ -156,7 +157,7 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
 
   override val shape = BidiWrappedShape(requestStreamIn, requestStreamOut, requestIn, requestOut, responseIn, responseOut, responseStreamIn, responseStreamOut)
 
-  override def createLogic(inheritedAttributes: Attributes) = new GraphStageLogic(shape) {
+  override def createLogic(inheritedAttributes: Attributes) = new GraphStageLogic(shape) { stageLogic =>
 
 
 
@@ -289,10 +290,12 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
           if (status >= 500 && status <= 599)
             span.addError(response.status.reason())
 
-          //activeRequests.decrement()
-          span.finish()
+          span.mark("headers")
 
-          push(responseOut, includeTraceToken(response, Kamon.currentContext()))
+          //activeRequests.decrement()
+          //span.finish()
+
+          push(responseOut, includeTraceToken(response, Kamon.currentContext(), span)(stageLogic.materializer.executionContext))
 
 
         }
@@ -335,7 +338,7 @@ class HttpRequesetWrappedStage extends GraphStage[BidiWrappedShape[ByteString,  
       responseStreamIn, new InHandler {
         override def onPush(): Unit = {
           val in = grab(responseStreamIn)
-          println(s"responseStreamIn onPush")
+          println(s"responseStreamIn onPush: $in -> ${in.utf8String}")
 
 
           push(responseStreamOut, in)
