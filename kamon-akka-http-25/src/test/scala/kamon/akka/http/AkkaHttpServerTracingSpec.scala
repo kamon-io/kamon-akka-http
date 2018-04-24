@@ -18,7 +18,7 @@ package kamon.akka.http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
+import akka.http.scaladsl.model.{HttpEntity, HttpMethods, HttpRequest}
 import akka.stream.ActorMaterializer
 import kamon.Kamon
 import kamon.context.{Context, Key, TextMap}
@@ -30,6 +30,7 @@ import org.json4s.native.JsonMethods.parse
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{BeforeAndAfterAll, Matchers, OptionValues, WordSpecLike}
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
@@ -49,7 +50,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
   "the Akka HTTP server instrumentation" should {
     "create a server Span when receiving requests" in {
       val target = s"http://$interface:$port/$dummyPathOk"
-      Http().singleRequest(HttpRequest(uri = target))
+      Http().singleRequest(HttpRequest(uri = target)).map(_.entity.discardBytes())
 
       eventually(timeout(10 seconds)) {
         val span = reporter.nextSpan().value
@@ -65,7 +66,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
 
     "change the Span operation name when using the operationName directive" in {
       val target = s"http://$interface:$port/$traceOk"
-      Http().singleRequest(HttpRequest(uri = target))
+      Http().singleRequest(HttpRequest(uri = target)).map(_.entity.discardBytes())
 
       eventually(timeout(10 seconds)) {
         val span = reporter.nextSpan().value
@@ -81,7 +82,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
 
     "mark spans as error when request fails" in {
       val target = s"http://$interface:$port/$dummyPathError"
-      Http().singleRequest(HttpRequest(uri = target))
+      Http().singleRequest(HttpRequest(uri = target)).map(_.entity.discardBytes())
 
       eventually(timeout(10 seconds)) {
         val span = reporter.nextSpan().value
@@ -97,7 +98,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
 
     "change the operation name to 'unhandled' when the response status code is 404" in {
       val target = s"http://$interface:$port/unknown-path"
-      Http().singleRequest(HttpRequest(uri = target))
+      Http().singleRequest(HttpRequest(uri = target)).map(_.entity.discardBytes())
 
       eventually(timeout(10 seconds)) {
         val span = reporter.nextSpan().value
@@ -132,6 +133,36 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
         basicContext("custom-string-key") shouldBe "hello for the server"
         basicContext("trace-id") shouldBe parentSpan.context().traceID.string
       }
+
+    }
+
+
+    "run a bunch of clients" in {
+      val stringKey = Key.broadcastString("custom-string-key")
+      val target = s"http://$interface:$port/$basicContext"
+      val parentSpan = Kamon.buildSpan("parent").start()
+      val context = Context.Empty
+      .withKey(Span.ContextKey, parentSpan)
+      .withKey(SpanCustomizer.ContextKey, SpanCustomizer.forOperationName("deserialize-context"))
+      .withKey(stringKey, Some("hello for the server"))
+
+      val response = Kamon.withContext(context) {
+
+        Range(1, 20).map{_ =>
+
+          Http().singleRequest(HttpRequest(uri = target))
+          .flatMap(r => r.entity.toStrict(timeoutTest))
+        }.last
+      }
+
+      eventually(timeout(10 seconds)) {
+        val httpResponse = response.value.value.get
+        val basicContext = parse(httpResponse.data.utf8String).extract[Map[String, String]]
+
+        basicContext("custom-string-key") shouldBe "hello for the server"
+        basicContext("trace-id") shouldBe parentSpan.context().traceID.string
+      }
+
     }
 
     def stringTag(span: Span.FinishedSpan)(tag: String): String = {
