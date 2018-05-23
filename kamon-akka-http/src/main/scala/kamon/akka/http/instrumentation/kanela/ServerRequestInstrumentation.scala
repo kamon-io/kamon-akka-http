@@ -27,9 +27,10 @@ class ServerRequestInstrumentation extends KanelaInstrumentation {
     * akka.http.scaladsl.HttpExt::bindAndHandle
     *
     */
-  forTargetType("akka.http.scaladsl.HttpExt") { builder ⇒
+//  forTargetType("akka.http.scaladsl.HttpExt") { builder ⇒
+  forTargetType("akka.http.impl.engine.server.HttpServerBluePrint$") { builder ⇒
     builder
-      .withAdvisorFor(method("bindAndHandle"), classOf[ServerFlowAdvisor])
+      .withAdvisorFor(method("requestPreparation"), classOf[ServerFlowAdvisor])
       .build()
   }
 }
