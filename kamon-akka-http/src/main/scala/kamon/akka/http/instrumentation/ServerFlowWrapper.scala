@@ -23,9 +23,8 @@ import akka.stream._
 import akka.stream.scaladsl.{BidiFlow, Flow}
 import akka.stream.stage._
 import kamon.Kamon
-import kamon.context.{Context => KamonContext}
 import kamon.akka.http.{AkkaHttp, AkkaHttpMetrics}
-import kamon.context.TextMap
+import kamon.context.{TextMap, Context => KamonContext}
 import kamon.trace.Span
 
 /**
@@ -114,6 +113,10 @@ object ServerFlowWrapper {
 
   def apply(flow: Flow[HttpRequest, HttpResponse, NotUsed], iface: String, port: Int): Flow[HttpRequest, HttpResponse, NotUsed] =
     BidiFlow.fromGraph(wrap(iface, port)).join(flow)
+
+  def apply2(iface: String, port: Int)  =
+    BidiFlow.fromGraph(wrap(iface, port))
+
 
   private def includeTraceToken(response: HttpResponse, context: KamonContext): HttpResponse = response match {
     case response: HttpResponse ⇒ response.withHeaders(

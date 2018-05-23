@@ -17,8 +17,8 @@
 resolvers += Resolver.bintrayRepo("hseeberger", "maven")
 
 val kamonTestKit        = "io.kamon" %% "kamon-testkit"         % "1.0.0"
-val kamonAkka24         = "io.kamon" %% "kamon-akka-2.4"        % "1.0.0"
-val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.0"
+//val kamonAkka24         = "io.kamon" %% "kamon-akka-2.4"        % "1.0.0"
+val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.2"
 val akkaHttpJson        = "de.heikoseeberger" %% "akka-http-json4s" % "1.18.1"
 val json4sNative        = "org.json4s" %% "json4s-native" % "3.5.3"
 
@@ -33,38 +33,40 @@ val httpTestKit25  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.0.11"
 val kanelaScalaExtension  = "io.kamon"  %%  "kanela-scala-extension"  % "0.0.10"
 
 
-lazy val baseSettings = Seq(
-  scalaSource in Compile := baseDirectory.value / ".." / ".." / "kamon-akka-http"/ "src" / "main" / "scala",
-  scalaSource in Test    := baseDirectory.value / ".." / ".." / "kamon-akka-http"/ "src" / "test" / "scala",
-  resourceDirectory in Compile := file(".") / "kamon-akka-http" / "src" / "main" / "resources",
-  unmanagedClasspath in Test ++= Seq(
-    baseDirectory.value / ".." / ".." / "kamon-akka-http" / "src" / "main" / "resources",
-    baseDirectory.value / ".." / ".." / "kamon-akka-http" / "src" / "test" / "resources"
-  )
-)
+//lazy val baseSettings = Seq(
+//  scalaSource in Compile := baseDirectory.value / ".." / ".." / "kamon-akka-http"/ "src" / "main" / "scala",
+//  scalaSource in Test    := baseDirectory.value / ".." / ".." / "kamon-akka-http"/ "src" / "test" / "scala",
+//  javaSource in Compile  := baseDirectory.value / ".." / ".." / "kamon-akka-http"/ "src" / "main" / "java",
+//  resourceDirectory in Compile := file(".") / "kamon-akka-http" / "src" / "main" / "resources",
+//  unmanagedClasspath in Test ++= Seq(
+//    baseDirectory.value / ".." / ".." / "kamon-akka-http" / "src" / "main" / "resources",
+//    baseDirectory.value / ".." / ".." / "kamon-akka-http" / "src" / "test" / "resources"
+//  )
+//)
 
 lazy val root = (project in file("."))
-  .aggregate(kamonAkkaHttp24, kamonAkkaHttp25, kamonAkkaHttpPlayground)
+//  .aggregate(kamonAkkaHttp24, kamonAkkaHttp25, kamonAkkaHttpPlayground)
+  .aggregate(kamonAkkaHttp25, kamonAkkaHttpPlayground)
   .settings(noPublishing: _*)
   .settings(Seq(crossScalaVersions := Seq("2.11.8", "2.12.1")))
 
-lazy val kamonAkkaHttp24 = Project("kamon-akka-http-24", file("target/kamon-akka-http-24"))
-  .settings(name := "kamon-akka-http-24", moduleName := "kamon-akka-http-2.4", bintrayPackage := "kamon-akka-http")
-  .enablePlugins(JavaAgent)
-  .settings(javaAgents ++= resolveAgent)
-  .settings(baseSettings: _*)
-  .settings(Seq(
-    scalaVersion := "2.12.1",
-    crossScalaVersions := Seq("2.11.8", "2.12.1")))
-  .settings(libraryDependencies ++=
-    compileScope(http24, stream24, kamonAkka24, kanelaScalaExtension) ++
-    testScope(httpTestKit24, scalatest, slf4jApi, slf4jnop, kamonTestKit, akkaHttpJson, json4sNative))
+//lazy val kamonAkkaHttp24 = Project("kamon-akka-http-24", file("target/kamon-akka-http-24"))
+//  .settings(name := "kamon-akka-http-24", moduleName := "kamon-akka-http-2.4", bintrayPackage := "kamon-akka-http")
+//  .enablePlugins(JavaAgent)
+//  .settings(javaAgents ++= resolveAgent)
+////  .settings(baseSettings: _*)
+//  .settings(Seq(
+//    scalaVersion := "2.12.1",
+//    crossScalaVersions := Seq("2.11.8", "2.12.1")))
+//  .settings(libraryDependencies ++=
+//    compileScope(http24, stream24, kamonAkka24, kanelaScalaExtension) ++
+//    testScope(httpTestKit24, scalatest, slf4jApi, slf4jnop, kamonTestKit, akkaHttpJson, json4sNative))
 
-lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("target/kamon-akka-http-25"))
+lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("kamon-akka-http"))
   .settings(name := "kamon-akka-http-25", moduleName := "kamon-akka-http-2.5", bintrayPackage := "kamon-akka-http")
   .enablePlugins(JavaAgent)
   .settings(javaAgents ++= resolveAgent)
-  .settings(baseSettings: _*)
+//  .settings(baseSettings: _*)
   .settings(Seq(
     scalaVersion := "2.12.1",
     crossScalaVersions := Seq("2.11.8", "2.12.1")))
