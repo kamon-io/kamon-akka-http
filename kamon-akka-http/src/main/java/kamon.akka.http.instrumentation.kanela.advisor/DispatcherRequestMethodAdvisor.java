@@ -17,6 +17,7 @@
 package kamon.akka.http.instrumentation.kanela.advisor;
 
 import akka.http.impl.engine.client.PoolInterfaceActor;
+import akka.http.impl.engine.client.PoolRequestInstrumentation;
 import kanela.agent.libs.net.bytebuddy.asm.Advice;
 
 /**
@@ -25,6 +26,6 @@ import kanela.agent.libs.net.bytebuddy.asm.Advice;
 public class DispatcherRequestMethodAdvisor {
     @Advice.OnMethodExit
     public static void onExit(@Advice.Argument(value = 0, readOnly = false) PoolInterfaceActor.PoolRequest poolRequest) {
-        poolRequest = (PoolInterfaceActor.PoolRequest) akka.http.impl.engine.client.PoolRequestInstrumentation.attachContext(poolRequest);
+        poolRequest = (PoolInterfaceActor.PoolRequest) PoolRequestInstrumentation.attachContextTo(poolRequest);
     }
 }
