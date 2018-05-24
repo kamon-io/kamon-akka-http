@@ -59,7 +59,7 @@ lazy val kamonAkkaHttp24 = Project("kamon-akka-http-24", file("target/kamon-akka
     crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http24, stream24, kamonAkka24, kanelaScalaExtension) ++
-    testScope(httpTestKit24, scalatest, slf4jApi, slf4jnop, kamonTestKit, akkaHttpJson, json4sNative))
+    testScope(httpTestKit24, scalatest, slf4jApi, logbackClassic, kamonTestKit, akkaHttpJson, json4sNative))
 
 lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("target/kamon-akka-http-25"))
   .settings(name := "kamon-akka-http-25", moduleName := "kamon-akka-http-2.5", bintrayPackage := "kamon-akka-http")
@@ -71,7 +71,7 @@ lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("target/kamon-akka
     crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http25, stream25, kamonAkka25, kanelaScalaExtension) ++
-    testScope(httpTestKit25, scalatest, slf4jApi, slf4jnop, kamonTestKit, akkaHttpJson, json4sNative))
+    testScope(httpTestKit25, scalatest, slf4jApi, logbackClassic, kamonTestKit, akkaHttpJson, json4sNative))
 
 lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground", file("kamon-akka-http-playground"))
   .dependsOn(kamonAkkaHttp25)
