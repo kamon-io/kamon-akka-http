@@ -17,22 +17,20 @@
 package kamon.akka.http.instrumentation.kanela.advisor;
 
 import akka.NotUsed;
-import akka.http.impl.engine.parsing.ParserOutput;
 import akka.http.scaladsl.model.HttpRequest;
 import akka.http.scaladsl.model.HttpResponse;
-import akka.http.scaladsl.settings.ServerSettings;
-import akka.stream.scaladsl.BidiFlow;
-import kamon.akka.http.instrumentation.ServerFlowWrapper$;
+import akka.stream.scaladsl.Flow;
+import kamon.akka.http.instrumentation.ServerFlowWrapper;
 import kanela.agent.libs.net.bytebuddy.asm.Advice;
 
 /**
  * Advisor for akka.http.scaladsl.HttpExt::bindAndHandle
  */
 public class ServerFlowAdvisor {
-    @Advice.OnMethodExit
-    public static void onEnter(@Advice.Argument(0) ServerSettings settings, @Advice.Return(readOnly = false) BidiFlow<HttpResponse, HttpResponse, ParserOutput.RequestOutput, HttpRequest, NotUsed> handler) {
-        System.out.println("Host: " + settings);
-        System.out.println("Port: " + settings.defaultHttpPort());
-        handler = ServerFlowWrapper$.MODULE$.apply2(settings.getDefaultHostHeader().host().address(), settings.defaultHttpPort()).reversed().atop(handler);
+    @Advice.OnMethodEnter
+    public static void onEnter(@Advice.Argument(value = 0, readOnly = false) Flow<HttpRequest, HttpResponse, NotUsed> handler,
+                               @Advice.Argument(1) String iface,
+                               @Advice.Argument(2) Integer port) {
+        handler = ServerFlowWrapper.apply(handler, iface, port);
     }
 }
