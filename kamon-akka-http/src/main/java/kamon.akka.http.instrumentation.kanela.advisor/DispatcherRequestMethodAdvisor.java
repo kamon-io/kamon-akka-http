@@ -14,17 +14,17 @@
  * =========================================================================================
  */
 
-package akka.http.impl.engine.client
+package kamon.akka.http.instrumentation.kanela.advisor;
 
-import akka.http.impl.engine.client.PoolInterfaceActor.PoolRequest
-import akka.http.scaladsl.model.headers.RawHeader
-import kamon.Kamon
-import kamon.context.HasContext
+import akka.http.impl.engine.client.PoolInterfaceActor;
+import kanela.agent.libs.net.bytebuddy.asm.Advice;
 
-object PoolRequestInstrumentation {
-    def attachContext(poolRequest: PoolRequest): AnyRef = {
-      val contextHeaders = Kamon.contextCodec().HttpHeaders.encode(poolRequest.asInstanceOf[HasContext].context).values.map(c => RawHeader(c._1, c._2))
-      val requestWithContext = poolRequest.request.withHeaders(poolRequest.request.headers ++ contextHeaders)
-      poolRequest.copy(request = requestWithContext)
+/**
+ * Advisor akka.http.impl.engine.client.PoolInterfaceActor::dispatchRequest
+ */
+public class DispatcherRequestMethodAdvisor {
+    @Advice.OnMethodExit
+    public static void onExit(@Advice.Argument(value = 0, readOnly = false) PoolInterfaceActor.PoolRequest poolRequest) {
+        poolRequest = (PoolInterfaceActor.PoolRequest) akka.http.impl.engine.client.PoolRequestInstrumentation.attachContext(poolRequest);
     }
 }
