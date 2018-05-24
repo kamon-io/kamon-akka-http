@@ -149,10 +149,6 @@ object ServerFlowWrapper {
   def apply(flow: Flow[HttpRequest, HttpResponse, NotUsed], iface: String, port: Int): Flow[HttpRequest, HttpResponse, NotUsed] =
     BidiFlow.fromGraph(wrap(iface, port)).join(flow)
 
-  def apply2(iface: String, port: Int)  =
-    BidiFlow.fromGraph(wrap(iface, port))
-
-
   private def includeTraceToken(response: HttpResponse, context: KamonContext): HttpResponse = response.withHeaders(
       response.headers ++ Kamon.contextCodec().HttpHeaders.encode(context).values.map(k => RawHeader(k._1, k._2))
     )
