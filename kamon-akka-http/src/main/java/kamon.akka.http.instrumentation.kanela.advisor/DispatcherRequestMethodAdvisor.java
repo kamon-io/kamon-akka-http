@@ -24,8 +24,8 @@ import kanela.agent.libs.net.bytebuddy.asm.Advice;
  * Advisor akka.http.impl.engine.client.PoolInterfaceActor::dispatchRequest
  */
 public class DispatcherRequestMethodAdvisor {
-    @Advice.OnMethodExit
-    public static void onExit(@Advice.Argument(value = 0, readOnly = false) PoolInterfaceActor.PoolRequest poolRequest) {
+    @Advice.OnMethodEnter
+    public static void onEnter(@Advice.Argument(value = 0, readOnly = false) PoolInterfaceActor.PoolRequest poolRequest) {
         poolRequest = (PoolInterfaceActor.PoolRequest) PoolRequestInstrumentation.attachContextTo(poolRequest);
     }
 }
