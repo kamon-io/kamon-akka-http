@@ -66,6 +66,9 @@ lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("target/kamon-akka
   .enablePlugins(JavaAgent)
   .settings(javaAgents ++= resolveAgent)
   .settings(baseSettings: _*)
+  .settings(publishArtifact in (Compile, packageDoc) := false)
+  .settings(publishArtifact in packageDoc := false)
+  .settings(sources in (Compile,doc) := Seq.empty)
   .settings(Seq(
     scalaVersion := "2.12.1",
     crossScalaVersions := Seq("2.11.8", "2.12.1")))
