@@ -27,7 +27,7 @@ import kanela.agent.libs.net.bytebuddy.asm.Advice;
  * Advisor for akka.http.scaladsl.HttpExt::bindAndHandle
  */
 public class ServerFlowAdvisor {
-    @Advice.OnMethodEnter
+    @Advice.OnMethodEnter(suppress = Throwable.class)
     public static void onEnter(@Advice.Argument(value = 0, readOnly = false) Flow<HttpRequest, HttpResponse, NotUsed> handler,
                                @Advice.Argument(1) String iface,
                                @Advice.Argument(2) Integer port) {
