@@ -24,8 +24,11 @@ import akka.stream.scaladsl.{BidiFlow, Flow}
 import akka.stream.stage._
 import kamon.Kamon
 import kamon.akka.http.{AkkaHttp, AkkaHttpMetrics}
-import kamon.context.{TextMap, Context => KamonContext}
+import kamon.context.HttpPropagation.{HeaderReader, HeaderWriter}
+import kamon.context.{Context => KamonContext}
 import kamon.trace.Span
+
+import scala.collection.mutable
 
 /**
   * Wraps an {@code Flow[HttpRequest,HttpResponse]} with the necessary steps to output
@@ -114,18 +117,24 @@ object ServerFlowWrapper {
   def apply(flow: Flow[HttpRequest, HttpResponse, NotUsed], iface: String, port: Int): Flow[HttpRequest, HttpResponse, NotUsed] =
     BidiFlow.fromGraph(wrap(iface, port)).join(flow)
 
+  def headerWriter(map: mutable.Map[String, String]) = new HeaderWriter {
+    override def write(header: String, value: String): Unit = map.put(header, value)
+  }
+
   private def includeTraceToken(response: HttpResponse, context: KamonContext): HttpResponse = response match {
-    case response: HttpResponse ⇒ response.withHeaders(
-      response.headers ++ Kamon.contextCodec().HttpHeaders.encode(context).values.map(k => RawHeader(k._1, k._2))
-    )
+    case response: HttpResponse ⇒ {
+      val contextHeaders = mutable.Map[String, String]()
+      Kamon.defaultHttpPropagation().write(context, headerWriter(contextHeaders))
+      response.withHeaders(
+        response.headers ++ contextHeaders.map(k => RawHeader(k._1, k._2)))
+    }
     case other                  ⇒ other
   }
 
-  private def extractContext(request: HttpRequest) = Kamon.contextCodec().HttpHeaders.decode(new TextMap {
-    private val headersKeyValueMap = request.headers.map(h => h.name -> h.value()).toMap
-    override def values: Iterator[(String, String)] = headersKeyValueMap.iterator
-    override def get(key: String): Option[String] = headersKeyValueMap.get(key)
-    override def put(key: String, value: String): Unit = {}
+  private def extractContext(request: HttpRequest) = Kamon.defaultHttpPropagation().read(new HeaderReader {
+    override def read(header: String): Option[String] = request.headers.find(_.lowercaseName() == header.toLowerCase).map(_.value())
+
+    override def readAll(): Map[String, String] = request.headers.map(h => (h.name(), h.value())).toMap
   })
 }
 

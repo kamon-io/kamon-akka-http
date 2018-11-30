@@ -21,7 +21,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
 import akka.stream.ActorMaterializer
 import kamon.Kamon
-import kamon.context.{Context, Key, TextMap}
+import kamon.context.Context
 import kamon.testkit._
 import kamon.trace.Span.TagValue
 import kamon.trace.{Span, SpanCustomizer}
@@ -112,13 +112,13 @@ class AkkaHttpServerTracingSpec extends WordSpecLike with Matchers with BeforeAn
     }
 
     "deserialize the Context from HTTP Headers" in {
-      val stringKey = Key.broadcastString("custom-string-key")
+      val stringTag = "custom-string-key"
       val target = s"http://$interface:$port/$basicContext"
       val parentSpan = Kamon.buildSpan("parent").start()
       val context = Context.Empty
         .withKey(Span.ContextKey, parentSpan)
         .withKey(SpanCustomizer.ContextKey, SpanCustomizer.forOperationName("deserialize-context"))
-        .withKey(stringKey, Some("hello for the server"))
+        .withTag(stringTag, "hello for the server")
 
       val response = Kamon.withContext(context) {
         Http().singleRequest(HttpRequest(uri = target))

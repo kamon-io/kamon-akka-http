@@ -22,11 +22,15 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import kamon.Kamon
 import kamon.akka.http.AkkaHttp
-import kamon.context.HasContext
+import kamon.context.HttpPropagation
+import kamon.context.HttpPropagation.HeaderWriter
+import kamon.instrumentation.Mixin.HasContext
 import kamon.trace.SpanCustomizer
+import kamon.trace.SpanPropagation.B3
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation._
 
+import scala.collection.mutable
 import scala.concurrent.Future
 import scala.util._
 
@@ -81,10 +85,15 @@ class ClientRequestInstrumentation {
     poolRequest.context
   }
 
+  def headerWriter(map: mutable.Map[String, String]) = new HeaderWriter {
+    override def write(header: String, value: String): Unit = map.put(header, value)
+  }
+
   @Around("execution(* akka.http.impl.engine.client.PoolInterfaceActor.dispatchRequest(..)) && args(poolRequest)")
   def aroundDispatchRequest(pjp: ProceedingJoinPoint, poolRequest: PoolRequest with HasContext): Any = {
-    val contextHeaders = Kamon.contextCodec().HttpHeaders.encode(poolRequest.context).values.map(c => RawHeader(c._1, c._2))
-    val requestWithContext = poolRequest.request.withHeaders(poolRequest.request.headers ++ contextHeaders)
+    val contextHeaders = mutable.Map[String, String]()
+    Kamon.defaultHttpPropagation().write(poolRequest.context, headerWriter(contextHeaders))
+    val requestWithContext = poolRequest.request.withHeaders(poolRequest.request.headers ++ contextHeaders.map(t => RawHeader(t._1, t._2)))
 
     pjp.proceed(Array(poolRequest.copy(request = requestWithContext)))
   }

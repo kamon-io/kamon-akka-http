@@ -19,12 +19,22 @@ package akka.http.impl.engine.client
 import akka.http.impl.engine.client.PoolInterfaceActor.PoolRequest
 import akka.http.scaladsl.model.headers.RawHeader
 import kamon.Kamon
-import kamon.context.HasContext
+import kamon.context.HttpPropagation.HeaderWriter
+import kamon.instrumentation.Mixin.HasContext
+
+import scala.collection.mutable
 
 object PoolRequestInstrumentation {
-    def attachContextTo(poolRequest: PoolRequest): AnyRef = {
-      val contextHeaders = Kamon.contextCodec().HttpHeaders.encode(poolRequest.asInstanceOf[HasContext].context).values.map(c => RawHeader(c._1, c._2))
-      val requestWithContext = poolRequest.request.withHeaders(poolRequest.request.headers ++ contextHeaders)
-      poolRequest.copy(request = requestWithContext)
-    }
+
+
+  def headerWriter(map: mutable.Map[String, String]) = new HeaderWriter {
+    override def write(header: String, value: String): Unit = map.put(header, value)
+  }
+
+  def attachContextTo(poolRequest: PoolRequest): AnyRef = {
+    val contextHeaders = mutable.Map[String, String]()
+    Kamon.defaultHttpPropagation().write(poolRequest.asInstanceOf[HasContext].context, headerWriter(contextHeaders))
+    val requestWithContext = poolRequest.request.withHeaders(poolRequest.request.headers ++ contextHeaders.map(c => RawHeader(c._1, c._2)))
+    poolRequest.copy(request = requestWithContext)
+  }
 }

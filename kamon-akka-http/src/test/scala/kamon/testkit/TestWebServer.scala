@@ -25,7 +25,6 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import kamon.Kamon
 import kamon.akka.http.TracingDirectives
-import kamon.context.Key
 import org.json4s.{DefaultFormats, native}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,7 +73,7 @@ trait TestWebServer extends TracingDirectives {
         path(basicContext) {
           complete {
             Map(
-              "custom-string-key" -> Kamon.currentContext().get(Key.broadcastString("custom-string-key")),
+              "custom-string-key" -> Kamon.currentContext().getTag("custom-string-key"),
               "trace-id" -> Kamon.currentSpan().context().traceID.string
             )
           }

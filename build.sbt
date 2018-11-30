@@ -16,9 +16,9 @@
 
 resolvers += Resolver.bintrayRepo("hseeberger", "maven")
 
-val kamonTestKit        = "io.kamon" %% "kamon-testkit"         % "1.0.0"
-val kamonAkka24         = "io.kamon" %% "kamon-akka-2.4"        % "1.0.0"
-val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.2"
+val kamonTestKit        = "io.kamon" %% "kamon-testkit"         % "1.2.0-M1"
+val kamonAkka24         = "io.kamon" %% "kamon-akka-2.4"        % "1.1.3-6701c3cbad5cf6a83304cf6e8095e0ef92ef0926"
+val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.1.3-6701c3cbad5cf6a83304cf6e8095e0ef92ef0926"
 val akkaHttpJson        = "de.heikoseeberger" %% "akka-http-json4s" % "1.18.1"
 val json4sNative        = "org.json4s" %% "json4s-native" % "3.5.3"
 
@@ -30,7 +30,7 @@ val http25         = "com.typesafe.akka" %% "akka-http"          % "10.0.11"
 val stream25       = "com.typesafe.akka" %% "akka-stream"        % "2.5.8"
 val httpTestKit25  = "com.typesafe.akka" %% "akka-http-testkit"  % "10.0.11"
 
-val kanelaScalaExtension  = "io.kamon"  %%  "kanela-scala-extension"  % "0.0.10"
+val kanelaScalaExtension  = "io.kamon"  %%  "kanela-scala-extension"  % "0.0.14"
 
 
 lazy val baseSettings = Seq(
@@ -101,13 +101,13 @@ def singleTestPerJvm(tests: Seq[TestDefinition], jvmSettings: Seq[String]): Seq[
     Group(
       name = test.name,
       tests = Seq(test),
-      runPolicy = SubProcess(ForkOptions(runJVMOptions = jvmSettings)))
+      runPolicy = SubProcess(ForkOptions().withRunJVMOptions(jvmSettings.toVector)))
   }
 
 def resolveAgent: Seq[ModuleID] = {
   val agent = Option(System.getProperty("agent")).getOrElse("aspectj")
   if(agent.equalsIgnoreCase("kanela"))
-    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile", "io.kamon" % "kanela-agent" % "0.0.300" % "compile;test")
+    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile", "io.kamon" % "kanela-agent" % "0.0.15" % "compile;test")
   else
-    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile;test", "io.kamon" % "kanela-agent" % "0.0.300" % "compile")
+    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile;test", "io.kamon" % "kanela-agent" % "0.0.15" % "compile")
 }

@@ -20,7 +20,8 @@ import akka.actor.ReflectiveDynamicAccess
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.headers.Host
 import com.typesafe.config.Config
-import kamon.{Kamon, OnReconfigureHook}
+import kamon.Configuration.OnReconfigureHook
+import kamon.Kamon
 
 
 object AkkaHttp {
