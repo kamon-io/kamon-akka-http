@@ -54,9 +54,6 @@ lazy val kamonAkkaHttp24 = Project("kamon-akka-http-24", file("target/kamon-akka
   .enablePlugins(JavaAgent)
   .settings(javaAgents ++= resolveAgent)
   .settings(baseSettings: _*)
-  .settings(Seq(
-    scalaVersion := "2.12.1",
-    crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http24, stream24, kamonAkka24, kanelaScalaExtension) ++
     testScope(httpTestKit24, scalatest, slf4jApi, logbackClassic, kamonTestKit, akkaHttpJson, json4sNative))
@@ -69,18 +66,12 @@ lazy val kamonAkkaHttp25 = Project("kamon-akka-http-25", file("target/kamon-akka
   .settings(publishArtifact in (Compile, packageDoc) := false)
   .settings(publishArtifact in packageDoc := false)
   .settings(sources in (Compile,doc) := Seq.empty)
-  .settings(Seq(
-    scalaVersion := "2.12.1",
-    crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .settings(libraryDependencies ++=
     compileScope(http25, stream25, kamonAkka25, kanelaScalaExtension) ++
     testScope(httpTestKit25, scalatest, slf4jApi, logbackClassic, kamonTestKit, akkaHttpJson, json4sNative))
 
 lazy val kamonAkkaHttpPlayground = Project("kamon-akka-http-playground", file("kamon-akka-http-playground"))
   .dependsOn(kamonAkkaHttp25)
-  .settings(Seq(
-    scalaVersion := "2.12.1",
-    crossScalaVersions := Seq("2.11.8", "2.12.1")))
   .enablePlugins(JavaAgent)
   .settings(javaAgents ++= resolveAgent)
   .settings(noPublishing: _*)
