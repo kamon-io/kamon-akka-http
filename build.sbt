@@ -18,7 +18,7 @@ resolvers += Resolver.bintrayRepo("hseeberger", "maven")
 
 val kamonTestKit        = "io.kamon" %% "kamon-testkit"         % "1.0.0"
 val kamonAkka24         = "io.kamon" %% "kamon-akka-2.4"        % "1.0.0"
-val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.2"
+val kamonAkka25         = "io.kamon" %% "kamon-akka-2.5"        % "1.0.0"
 val akkaHttpJson        = "de.heikoseeberger" %% "akka-http-json4s" % "1.18.1"
 val json4sNative        = "org.json4s" %% "json4s-native" % "3.5.3"
 
@@ -95,19 +95,10 @@ lazy val settingsForPlayground: Seq[Setting[_]] = Seq(
   cancelable in Global := true
 )
 
-import sbt.Tests._
-def singleTestPerJvm(tests: Seq[TestDefinition], jvmSettings: Seq[String]): Seq[Group] =
-  tests map { test =>
-    Group(
-      name = test.name,
-      tests = Seq(test),
-      runPolicy = SubProcess(ForkOptions(runJVMOptions = jvmSettings)))
-  }
-
 def resolveAgent: Seq[ModuleID] = {
   val agent = Option(System.getProperty("agent")).getOrElse("aspectj")
   if(agent.equalsIgnoreCase("kanela"))
-    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile", "io.kamon" % "kanela-agent" % "0.0.300" % "compile;test")
+    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile", "io.kamon" % "kanela-agent" % "0.0.15" % "compile;test")
   else
-    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile;test", "io.kamon" % "kanela-agent" % "0.0.300" % "compile")
+    Seq("org.aspectj" % "aspectjweaver" % "1.9.1" % "compile;test", "io.kamon" % "kanela-agent" % "0.0.15" % "compile")
 }
