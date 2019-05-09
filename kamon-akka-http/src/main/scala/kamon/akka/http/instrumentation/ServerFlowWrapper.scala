@@ -17,12 +17,11 @@
 package kamon.akka.http.instrumentation
 
 import scala.collection.immutable.TreeMap
-
 import akka.NotUsed
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream._
-import akka.stream.scaladsl.{BidiFlow, Flow, Keep}
+import akka.stream.scaladsl.{BidiFlow, Flow, Keep, Sink, Source}
 import akka.stream.stage._
 import akka.util.ByteString
 import kamon.Kamon
@@ -30,6 +29,7 @@ import kamon.akka.http.{AkkaHttp, AkkaHttpMetrics}
 import kamon.context.{TextMap, Context => KamonContext}
 import kamon.trace.Span
 
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 /**
@@ -144,6 +144,14 @@ object ServerFlowWrapper {
       override def preStart(): Unit = openConnections.increment()
       override def postStop(): Unit = openConnections.decrement()
     }
+  }
+
+  def async(interface: String, port: Int)(handler: HttpRequest => Future[HttpResponse])(implicit mat: Materializer): HttpRequest => Future[HttpResponse] = {
+    val wrappedFlow = apply(Flow[HttpRequest].mapAsync(1)(handler), interface, port)
+    val wrappedHandler: HttpRequest => Future[HttpResponse] = { request =>
+      Source.single(request).via(wrappedFlow).runWith(Sink.head)
+    }
+    wrappedHandler
   }
 
   def apply(flow: Flow[HttpRequest, HttpResponse, NotUsed], interface: String, port: Int): Flow[HttpRequest, HttpResponse, NotUsed] =

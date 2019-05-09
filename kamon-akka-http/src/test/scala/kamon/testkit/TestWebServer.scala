@@ -18,11 +18,12 @@ package kamon.testkit
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpRequest, HttpResponse}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.Connection
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{RequestContext, Route}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
@@ -30,86 +31,96 @@ import kamon.Kamon
 import kamon.akka.http.TracingDirectives
 import kamon.context.Key
 import org.json4s.{DefaultFormats, native}
-import scala.concurrent.duration._
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Random
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future, blocking}
 
 trait TestWebServer extends TracingDirectives {
   implicit val serialization = native.Serialization
   implicit val formats = DefaultFormats
   import Json4sSupport._
 
-  def startServer(interface: String, port: Int)(implicit system: ActorSystem): WebServer = {
+  private[this] def routes(implicit system: ActorSystem, materializer: ActorMaterializer) = {
     import Endpoints._
 
-    implicit val ec: ExecutionContext = system.dispatcher
-    implicit val materializer = ActorMaterializer()
-
-    val routes = logRequest("routing-request") {
+    logRequest("routing-request") {
       get {
         path(rootOk) {
           complete(OK)
         } ~
-        path(dummyPathOk) {
-          complete(OK)
-        } ~
-        path(dummyPathError) {
-          complete(InternalServerError)
-        } ~
-        path(traceOk) {
-          operationName("user-supplied-operation") {
+          path(dummyPathOk) {
             complete(OK)
-          }
-        } ~
-        path(traceBadRequest) {
-          complete(BadRequest)
-        } ~
-        path(metricsOk) {
-          complete(OK)
-        } ~
-        path(metricsBadRequest) {
-          complete(BadRequest)
-        } ~
-        path(replyWithHeaders) {
-          extractRequest { req =>
-            complete(req.headers.map(h => (h.name(), h.value())).toMap[String, String])
-          }
-        } ~
-        path(basicContext) {
-          complete {
-            Map(
-              "custom-string-key" -> Kamon.currentContext().get(Key.broadcastString("custom-string-key")),
-              "trace-id" -> Kamon.currentSpan().context().traceID.string
-            )
-          }
-        } ~
-        path(waitTen) {
-          respondWithHeader(Connection("close")) {
+          } ~
+          path(dummyPathError) {
+            complete(InternalServerError)
+          } ~
+          path(traceOk) {
+            operationName("user-supplied-operation") {
+              complete(OK)
+            }
+          } ~
+          path(traceBadRequest) {
+            complete(BadRequest)
+          } ~
+          path(metricsOk) {
+            complete(OK)
+          } ~
+          path(metricsBadRequest) {
+            complete(BadRequest)
+          } ~
+          path(replyWithHeaders) {
+            extractRequest { req =>
+              complete(req.headers.map(h => (h.name(), h.value())).toMap[String, String])
+            }
+          } ~
+          path(basicContext) {
             complete {
-              Thread.sleep(5000)
-              OK
+              Map(
+                "custom-string-key" -> Kamon.currentContext().get(Key.broadcastString("custom-string-key")),
+                "trace-id" -> Kamon.currentSpan().context().traceID.string
+              )
+            }
+          } ~
+          path(waitTen) {
+            respondWithHeader(Connection("close")) {
+              extractExecutionContext { implicit ec =>
+                complete {
+                  Thread.sleep(5000)
+                  OK
+                }
+              }
+            }
+          } ~
+          path(stream) {
+            complete{
+
+              val longStringContentStream = Source(
+                Range(1, 16).map{ i =>
+                  ByteString(
+                    100 * ('a' + i).toChar
+                  )
+                }
+              )
+
+              HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, longStringContentStream))
             }
           }
-        } ~
-        path(stream) {
-          complete{
-
-            val longStringContentStream = Source(
-              Range(1, 16).map{ i =>
-              ByteString(
-                100 * ('a' + i).toChar
-              )
-              }
-            )
-
-            HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, longStringContentStream))
-          }
-        }
       }
     }
+  }
+
+  def startServer(interface: String, port: Int)(implicit system: ActorSystem): WebServer = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    implicit val materializer = ActorMaterializer()
 
     new WebServer(Http().bindAndHandle(routes, interface, port))
+  }
+
+  def startServerAsync(interface: String, port: Int)(implicit system: ActorSystem): WebServer = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    implicit val materializer = ActorMaterializer()
+
+    new WebServer(Http().bindAndHandleAsync(Route.asyncHandler(routes), interface, port))
   }
 
   object Endpoints {

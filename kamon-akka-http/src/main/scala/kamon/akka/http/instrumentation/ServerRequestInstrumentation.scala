@@ -26,6 +26,8 @@ import akka.stream.scaladsl.Flow
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.{Around, Aspect}
 
+import scala.concurrent.Future
+
 @Aspect
 class ServerRequestInstrumentation {
 
@@ -36,4 +38,13 @@ class ServerRequestInstrumentation {
     val originalFLow = handler.asInstanceOf[Flow[HttpRequest, HttpResponse, NotUsed]]
     pjp.proceed(Array(ServerFlowWrapper(originalFLow, interface, port), interface, Int.box(port), connectionContext, settings, log, materializer))
   }
+
+  @Around("execution(* akka.http.scaladsl.HttpExt.bindAndHandleAsync(..)) && args(handler, interface, port, connectionContext, settings, parallelism, log, materializer)")
+  def onBindAndHandleAsync(pjp: ProceedingJoinPoint, handler: HttpRequest => Future[HttpResponse], interface: String,
+      port: Int, connectionContext: ConnectionContext, settings: ServerSettings, parallelism: Int, log: LoggingAdapter, materializer: Materializer): AnyRef = {
+
+    val wrapper = ServerFlowWrapper.async(interface, port)(handler)(materializer)
+    pjp.proceed(Array(wrapper, interface, Int.box(port), connectionContext, settings, Int.box(parallelism), log, materializer))
+  }
+
 }

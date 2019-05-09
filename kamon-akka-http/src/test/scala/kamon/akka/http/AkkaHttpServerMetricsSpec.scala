@@ -26,23 +26,23 @@ import kamon.testkit._
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{BeforeAndAfterAll, Matchers, OptionValues, WordSpecLike}
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 
-class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
+abstract class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with MetricInspection
   with Reconfigure with TestWebServer with Eventually with OptionValues {
 
   import AkkaHttpMetrics._
   import TestWebServer.Endpoints._
 
-  implicit private val system = ActorSystem("http-server-metrics-instrumentation-spec")
+  implicit protected val system = ActorSystem("http-server-metrics-instrumentation-spec")
   implicit private val executor = system.dispatcher
   implicit private val materializer = ActorMaterializer()
 
   val timeoutTest: FiniteDuration = 5 second
   val interface = "127.0.0.1"
   val port = 8083
-  val webServer = startServer(interface, port)
+  val webServer: WebServer
 
   "the Akka HTTP server instrumentation" should {
     "track the number of open connections and active requests on the Server side" in {
@@ -55,12 +55,12 @@ class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAn
         sendRequest(HttpRequest(uri = s"http://$interface:$port/$waitTen"))
       }
 
-      eventually(timeout(10 seconds)) {
+      eventually(timeout(5 seconds)) {
         OpenConnections.refine(httpServerMetricsTags).distribution().max shouldBe(8)
         ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(8)
       }
 
-      eventually(timeout(20 seconds)) {
+      eventually(timeout(10 seconds)) {
         OpenConnections.refine(httpServerMetricsTags).distribution().max shouldBe(0)
         ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(0)
       }
@@ -83,3 +83,10 @@ class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with BeforeAn
   }
 }
 
+class DefaultAkkaHttpServerMetricsSpec extends AkkaHttpServerMetricsSpec {
+  val webServer: WebServer = startServer(interface, port)
+}
+
+class AsyncAkkaHttpServerMetricsSpec extends AkkaHttpServerMetricsSpec {
+  val webServer: WebServer = startServerAsync(interface, port)
+}
