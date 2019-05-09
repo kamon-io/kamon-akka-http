@@ -148,8 +148,12 @@ object ServerFlowWrapper {
 
   def async(interface: String, port: Int)(handler: HttpRequest => Future[HttpResponse])(implicit mat: Materializer): HttpRequest => Future[HttpResponse] = {
     val wrappedFlow = apply(Flow[HttpRequest].mapAsync(1)(handler), interface, port)
+
+    val responses =
+      Source.queue[HttpRequest](10, OverflowStrategy.fail).async.via(wrappedFlow)
+
     val wrappedHandler: HttpRequest => Future[HttpResponse] = { request =>
-      Source.single(request).via(wrappedFlow).runWith(Sink.head)
+      responses.mapMaterializedValue(q => q.offer(request)).runWith(Sink.head)
     }
     wrappedHandler
   }

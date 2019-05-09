@@ -60,7 +60,7 @@ abstract class AkkaHttpServerMetricsSpec extends WordSpecLike with Matchers with
         ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(8)
       }
 
-      eventually(timeout(10 seconds)) {
+      eventually(timeout(20 seconds)) {
         OpenConnections.refine(httpServerMetricsTags).distribution().max shouldBe(0)
         ActiveRequests.refine(httpServerMetricsTags).distribution().max shouldBe(0)
       }
