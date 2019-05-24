@@ -16,6 +16,8 @@
 
 package kamon.akka.http.instrumentation
 
+import java.util.regex.Pattern
+
 import akka.NotUsed
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.ConnectionContext
@@ -87,7 +89,7 @@ class ServerRequestInstrumentation extends BasicDirectives with PathDirectives  
           case a: Any     => List(a.toString)
         }
         values.flatten.fold(consumedSegment) { (full, value) =>
-          val r = s"(?i)(^|/)" + value + "($|/)"
+          val r = s"(?i)(^|/)" + Pattern.quote(value) + "($|/)"
           full.replaceFirst(r, "$1{}$2")
         }
     }

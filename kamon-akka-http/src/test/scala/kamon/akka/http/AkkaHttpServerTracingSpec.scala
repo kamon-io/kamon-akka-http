@@ -67,25 +67,32 @@ class AkkaHttpServerTracingSpec extends WordSpecLike
     }
 
     "not include variables in operation name" when {
-       "including nested directives" in {
-         val path = s"extraction/nested/42/fixed/anchor/32/${UUID.randomUUID().toString}/fixed/44/CafE"
-         val expected = "/extraction/nested/{}/fixed/anchor/{}/{}/fixed/{}/{}"
-         val target = s"http://$interface:$port/$path"
-         Http().singleRequest(HttpRequest(uri = target)).map(_.discardEntityBytes())
-         eventually(timeout(10 seconds)) {
-           val span = reporter.nextSpan().value
-           span.operationName shouldBe expected
-         }
-       }
-      "including ambiguous nested directives" in {
-        val path = s"v3/user/3/post/3"
-        val expected = "/v3/user/{}/post/{}"
+
+      def testOperationName(path: String, expectadOperaionName: String) = {
         val target = s"http://$interface:$port/$path"
         Http().singleRequest(HttpRequest(uri = target)).map(_.discardEntityBytes())
         eventually(timeout(10 seconds)) {
           val span = reporter.nextSpan().value
-          span.operationName shouldBe expected
+          span.operationName shouldBe expectadOperaionName
         }
+      }
+
+      "including nested directives" in {
+        val path = s"extraction/nested/42/fixed/anchor/32/${UUID.randomUUID().toString}/fixed/44/CafE"
+        val expected = "/extraction/nested/{}/fixed/anchor/{}/{}/fixed/{}/{}"
+        testOperationName(path, expected)
+      }
+
+      "including ambiguous nested directives" in {
+        val path = s"v3/user/3/post/3"
+        val expected = "/v3/user/{}/post/{}"
+        testOperationName(path, expected)
+      }
+
+      "including special characters" in {
+        val path = s"extraction/special-chars/fixed/2019-05-01T12:00:00+01:00"
+        val expected = "/extraction/special-chars/fixed/{}"
+        testOperationName(path, expected)
       }
     }
 

@@ -66,6 +66,11 @@ trait TestWebServer extends TracingDirectives {
               path("fixed" ~ JavaUUID ~ HexIntNumber) { (uuid, num) =>
                 complete("OK")
               }
+            } ~
+            pathPrefix("special-chars") {
+              path("fixed" / Segment) { _ =>
+                complete("OK")
+              }
             }
           }
         } ~
