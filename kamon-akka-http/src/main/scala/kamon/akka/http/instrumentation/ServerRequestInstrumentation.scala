@@ -31,6 +31,8 @@ import akka.stream.scaladsl.Flow
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.{Around, Aspect, DeclareMixin}
 import kamon.Kamon
+import kamon.context.Key
+import kamon.trace.Span
 
 @Aspect
 class ServerRequestInstrumentation extends BasicDirectives with PathDirectives  {
@@ -63,9 +65,18 @@ class ServerRequestInstrumentation extends BasicDirectives with PathDirectives  
 
   @Around("execution(* akka.http.scaladsl.server.RequestContextImpl.complete(..)) && this(ctx)")
   def aroundCtxComplete(pjp: ProceedingJoinPoint, ctx: RequestContext): AnyRef = {
-    val allMatches = ctx.asInstanceOf[MatchingContext].matchingContext.reverse.map(singleMatch)
-    val operationName = allMatches.mkString("")
-    Kamon.currentSpan().setOperationName(operationName)
+    val currentContext = Kamon.currentContext()
+
+    currentContext.get(ServerRequestInstrumentation.LastOperationNameEdit).foreach(lastEdit => {
+      val currentSpan = currentContext.get(Span.ContextKey)
+
+      if(currentSpan.operationName() == lastEdit.operationName) {
+        val allMatches = ctx.asInstanceOf[MatchingContext].matchingContext.reverse.map(singleMatch)
+        val newOperationName = allMatches.mkString("")
+        lastEdit.operationName = newOperationName
+        Kamon.currentSpan().setOperationName(newOperationName)
+      }
+    })
     pjp.proceed()
   }
 
@@ -101,6 +112,15 @@ class ServerRequestInstrumentation extends BasicDirectives with PathDirectives  
     copy
   }
 
+}
+
+object ServerRequestInstrumentation {
+  class OperationNameEdit(@volatile var operationName: String)
+
+  val LastOperationNameEdit = Key.local[Option[OperationNameEdit]]("one", None)
+
+  def initialOperationNameEdit(operationName: String): Option[OperationNameEdit] =
+    Some(new OperationNameEdit(operationName))
 
 }
 

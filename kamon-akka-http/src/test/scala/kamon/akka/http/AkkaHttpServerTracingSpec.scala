@@ -90,7 +90,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike
     }
 
     //TODO decide what to do with operationName directive, currently whatever it sets gets overriden by instrumentation when route is completed
-/*    "change the Span operation name when using the operationName directive" in {
+    "change the Span operation name when using the operationName directive" in {
       val target = s"http://$interface:$port/$traceOk"
       Http().singleRequest(HttpRequest(uri = target)).map(_.discardEntityBytes())
 
@@ -104,7 +104,7 @@ class AkkaHttpServerTracingSpec extends WordSpecLike
         spanTags("http.url") shouldBe target
         span.tags("http.status_code") shouldBe TagValue.Number(200)
       }
-    }*/
+    }
 
     "mark spans as error when request fails" in {
       val target = s"http://$interface:$port/$dummyPathError"

@@ -58,7 +58,9 @@ object ServerFlowWrapper {
         override def onPush(): Unit = {
           val request = grab(requestIn)
           val parentContext = extractContext(request)
-          val span = Kamon.buildSpan(serverOperationName(request))
+          val operationName = serverOperationName(request)
+          val lastEdit = ServerRequestInstrumentation.initialOperationNameEdit(operationName)
+          val span = Kamon.buildSpan(operationName)
             .asChildOf(parentContext.get(Span.ContextKey))
             .withMetricTag("span.kind", "server")
             .withTag("component", "akka.http.server")
@@ -70,7 +72,10 @@ object ServerFlowWrapper {
 
           // The only reason why it's safe to leave the Thread dirty is because the Actor instrumentation
           // will cleanup afterwards.
-          Kamon.storeContext(parentContext.withKey(Span.ContextKey, span))
+          Kamon.storeContext(parentContext
+            .withKey(Span.ContextKey, span)
+            .withKey(ServerRequestInstrumentation.LastOperationNameEdit, lastEdit))
+
           push(requestOut, request)
         }
         override def onUpstreamFinish(): Unit = complete(requestOut)
