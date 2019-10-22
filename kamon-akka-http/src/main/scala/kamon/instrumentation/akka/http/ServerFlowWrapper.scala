@@ -3,21 +3,23 @@ package kamon.instrumentation.akka.http
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
 
-import akka.NotUsed
-import akka.http.scaladsl.model.{HttpEntity, HttpRequest, HttpResponse}
-import akka.stream.scaladsl.{BidiFlow, Flow, Keep}
+import akka.{Done, NotUsed}
+import akka.http.scaladsl.model.{HttpEntity, HttpRequest, HttpResponse, RequestEntity, ResponseEntity}
+import akka.stream.scaladsl.{BidiFlow, Broadcast, Concat, Flow, GraphDSL, Keep, Source}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
-import akka.stream.{Attributes, BidiShape, Inlet, Outlet}
+import akka.stream.{Attributes, BidiShape, FlowShape, Inlet, Outlet}
 import akka.util.ByteString
 import kamon.Kamon
 import kamon.instrumentation.http.HttpServerInstrumentation.RequestHandler
 import kamon.instrumentation.http.HttpServerInstrumentation
 import kamon.util.CallingThreadExecutionContext
 import kamon.instrumentation.akka.http.AkkaHttpInstrumentation.{toRequest, toResponseBuilder}
-
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
+
+import akka.http.scaladsl.model.HttpEntity.{Chunk, ChunkStreamPart, Chunked, LastChunk}
 
 /**
   * Wraps a {@code Flow[HttpRequest,HttpResponse]} with the necessary infrastructure to provide HTTP Server metrics,
@@ -105,7 +107,7 @@ object ServerFlowWrapper {
               .takeSamplingDecision()
           }
 
-          val entity = if(responseWithContext.entity.isKnownEmpty()) {
+          val entity: ResponseEntity = if(responseWithContext.entity.isKnownEmpty()) {
             requestHandler.responseSent(0L)
             responseWithContext.entity
           } else {
@@ -118,21 +120,27 @@ object ServerFlowWrapper {
                 strict
               case _ =>
                 val responseSizeCounter = new AtomicLong(0L)
-                responseWithContext.entity.transformDataBytes(
-                  Flow[ByteString]
-                    .watchTermination()(Keep.right)
-                    .wireTap(bs => responseSizeCounter.addAndGet(bs.size))
-                    .mapMaterializedValue { f =>
-                      f.andThen {
-                        case Success(_) =>
-                          requestHandler.responseSent(responseSizeCounter.get())
-                        case Failure(e) =>
-                          requestSpan.fail("Response entity stream failed", e)
-                          requestHandler.responseSent(responseSizeCounter.get())
 
-                      }(CallingThreadExecutionContext)
-                    }
-                )
+                val captureMetricsFlow: Flow[ByteString, ByteString, Future[Done]] = Flow[ByteString]
+                  .watchTermination()(Keep.right)
+                  .wireTap(bs => responseSizeCounter.addAndGet(bs.size))
+                  .mapMaterializedValue { f =>
+                    f.andThen {
+                      case Success(_) =>
+                        requestHandler.responseSent(responseSizeCounter.get())
+                      case Failure(e) =>
+                        requestSpan.fail("Response entity stream failed", e)
+                        requestHandler.responseSent(responseSizeCounter.get())
+
+                    }(CallingThreadExecutionContext)
+                  }
+
+                responseWithContext.entity match {
+                  case chunkedEntity: Chunked =>
+                    HttpEntity.Chunked(chunkedEntity.contentType, chunkedEntity.chunks.via(transformChunkedEntityData(captureMetricsFlow)))
+                  case nonChunkedEntity =>
+                    nonChunkedEntity.transformDataBytes(captureMetricsFlow)
+                }
             }
           }
 
@@ -159,6 +167,33 @@ object ServerFlowWrapper {
         val connectionLifetime = Duration.between(_createdAt, Kamon.clock().instant())
         httpServerInstrumentation.connectionClosed(connectionLifetime, _completedRequests)
       }
+
+      /**
+      * In case of akka-grpc prepared responses the entity data cannot be extracted using
+      * `akka.http.scaladsl.model.HttpEntity.Chunked#transformDataBytes(akka.stream.scaladsl.Flow` because the
+      * method is not supporting chunks with trailing headers that akka-grpc sets.
+      */
+      private def transformChunkedEntityData(transformer: Flow[ByteString, ByteString, Future[Done]]): Flow[ChunkStreamPart, ChunkStreamPart, NotUsed] = Flow.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
+        import akka.stream.scaladsl.GraphDSL.Implicits._
+
+        val bcast = builder.add(Broadcast[ChunkStreamPart](2))
+        val concat = builder.add(Concat[ChunkStreamPart](2))
+
+        val captureRequestData: Flow[ChunkStreamPart, ChunkStreamPart, Any] = Flow[ChunkStreamPart].map {
+          case Chunk(data, _)  => data
+          case _: LastChunk => ByteString.empty
+        }.via(transformer).collect {
+          case b: ByteString if b.nonEmpty => Chunk(b)
+        }
+
+        val extractTrailingHeader: Flow[ChunkStreamPart, ChunkStreamPart, Any] = Flow[ChunkStreamPart].collect {
+          case lc @ LastChunk(_, s) if s.nonEmpty => lc
+        }
+
+        bcast ~> captureRequestData ~> concat
+        bcast ~> extractTrailingHeader ~> concat
+        FlowShape(bcast.in, concat.out)
+      })
     }
   }
 
